@@ -12,22 +12,32 @@ HAL_DIR=hal/$(MCU_SERIES)
 
 ifeq ($(CIRCUITPY_CYW43),1)
 INC_CYW43 := \
+    -Ibtstack \
+    -isystem lib/btstack/platform/embedded \
+    -isystem lib/btstack/src \
 	-isystem lib/cyw43-driver/firmware \
 	-isystem lib/cyw43-driver/src \
 	-isystem lib/lwip/src/include \
 	-isystem sdk/src/rp2_common/pico_async_context/include/ \
+	-isystem sdk/src/rp2_common/pico_btstack/include/ \
 	-isystem sdk/src/rp2_common/pico_cyw43_arch/include/ \
 	-isystem sdk/src/rp2_common/pico_cyw43_driver/include/ \
+	-isystem sdk/src/rp2_common/pico_flash/include/ \
 	-isystem sdk/src/rp2_common/pico_lwip/include/ \
 	-isystem sdk/src/rp2_common/pico_rand/include/ \
 
-CFLAGS_CYW43 := -DCYW43_LWIP=1 -DPICO_CYW43_ARCH_THREADSAFE_BACKGROUND=1 -DCYW43_USE_SPI -DIGNORE_GPIO25 -DIGNORE_GPIO23 -DIGNORE_GPIO24 -DCYW43_LOGIC_DEBUG=0 -DCYW43_USE_STATS=0 -DPICO_BUILD -DCYW43_ENABLE_BLUETOOTH=0 -DPICO_CYW43_ARCH_POLL=0
+CFLAGS_CYW43 := -DCYW43_LWIP=1 -DPICO_CYW43_ARCH_THREADSAFE_BACKGROUND=1 -DCYW43_USE_SPI -DIGNORE_GPIO25 -DIGNORE_GPIO23 -DIGNORE_GPIO24 -DCYW43_LOGIC_DEBUG=0 -DCYW43_USE_STATS=0 -DPICO_BUILD -DCYW43_ENABLE_BLUETOOTH=1 -DPICO_CYW43_ARCH_POLL=0
 SRC_SDK_CYW43 := \
 	src/common/pico_sync/sem.c \
 	src/rp2_common/pico_async_context/async_context_base.c \
 	src/rp2_common/pico_async_context/async_context_threadsafe_background.c \
+	src/rp2_common/pico_btstack/btstack_flash_bank.c \
+	src/rp2_common/pico_btstack/btstack_run_loop_async_context.c \
 	src/rp2_common/pico_cyw43_arch/cyw43_arch.c \
 	src/rp2_common/pico_cyw43_arch/cyw43_arch_threadsafe_background.c \
+	src/rp2_common/pico_cyw43_driver/btstack_cyw43.c \
+	src/rp2_common/pico_cyw43_driver/btstack_hci_transport_cyw43.c \
+	src/rp2_common/pico_cyw43_driver/cybt_shared_bus/cybt_shared_bus.c \
 	src/rp2_common/pico_cyw43_driver/cyw43_driver.c \
 	src/rp2_common/pico_cyw43_driver/cyw43_bus_pio_spi.c \
 	src/rp2_common/pico_lwip/lwip_nosys.c \
@@ -50,6 +60,16 @@ SRC_CYW43 := \
 	lib/cyw43-driver/src/cyw43_ll.c \
 	lib/cyw43-driver/src/cyw43_lwip.c \
 
+SRC_BTSTACK := \
+	lib/btstack/src/btstack_linked_list.c \
+	lib/btstack/src/btstack_memory.c \
+	lib/btstack/src/btstack_memory_pool.c \
+	lib/btstack/src/btstack_run_loop.c \
+	lib/btstack/src/btstack_util.c \
+	lib/btstack/src/hci.c \
+	lib/btstack/src/hci_cmd.c \
+	lib/btstack/src/hci_dump.c \
+
 PIOASM = $(BUILD)/pioasm/pioasm/pioasm
 .PHONY: pioasmBuild
 pioasmBuild: $(PIOASM)
@@ -67,6 +87,7 @@ CFLAGS_CYW43 :=
 SRC_SDK_CYW43 :=
 SRC_CYW43 :=
 SRC_LWIP :=
+SRC_BTSTACK :=
 endif
 
 CHIP_VARIANT_LOWER = $(shell echo $(CHIP_VARIANT) | tr '[:upper:]' '[:lower:]')
@@ -524,6 +545,7 @@ SRC_C += \
 	mphalport.c \
 	$(SRC_CYW43) \
 	$(SRC_LWIP) \
+	$(SRC_BTSTACK) \
 
 
 ifeq ($(CIRCUITPY_USB_HOST), 1)
