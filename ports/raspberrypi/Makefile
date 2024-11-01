@@ -18,6 +18,7 @@ INC_CYW43 := \
 	-isystem lib/cyw43-driver/firmware \
 	-isystem lib/cyw43-driver/src \
 	-isystem lib/lwip/src/include \
+	-isystem sdk/src/rp2_common/hardware_exception/include/ \
 	-isystem sdk/src/rp2_common/pico_async_context/include/ \
 	-isystem sdk/src/rp2_common/pico_btstack/include/ \
 	-isystem sdk/src/rp2_common/pico_cyw43_arch/include/ \
@@ -48,11 +49,14 @@ SRC_SDK_CYW43 := \
 	src/rp2_common/pico_btstack/btstack_run_loop_async_context.c \
 	src/rp2_common/pico_cyw43_arch/cyw43_arch.c \
 	src/rp2_common/pico_cyw43_arch/cyw43_arch_threadsafe_background.c \
+	src/rp2_common/pico_cyw43_driver/btstack_chipset_cyw43.c \
 	src/rp2_common/pico_cyw43_driver/btstack_cyw43.c \
 	src/rp2_common/pico_cyw43_driver/btstack_hci_transport_cyw43.c \
 	src/rp2_common/pico_cyw43_driver/cybt_shared_bus/cybt_shared_bus.c \
+	src/rp2_common/pico_cyw43_driver/cybt_shared_bus/cybt_shared_bus_driver.c \
 	src/rp2_common/pico_cyw43_driver/cyw43_driver.c \
 	src/rp2_common/pico_cyw43_driver/cyw43_bus_pio_spi.c \
+	src/rp2_common/pico_flash/flash.c \
 	src/rp2_common/pico_lwip/lwip_nosys.c \
 	src/rp2_common/pico_rand/rand.c \
 
@@ -74,10 +78,13 @@ SRC_CYW43 := \
 	lib/cyw43-driver/src/cyw43_lwip.c \
 
 SRC_BTSTACK := \
+	lib/btstack/platform/embedded/btstack_tlv_flash_bank.c \
+	lib/btstack/src/ble/le_device_db_tlv.c \
 	lib/btstack/src/btstack_linked_list.c \
 	lib/btstack/src/btstack_memory.c \
 	lib/btstack/src/btstack_memory_pool.c \
 	lib/btstack/src/btstack_run_loop.c \
+	lib/btstack/src/btstack_tlv.c \
 	lib/btstack/src/btstack_util.c \
 	lib/btstack/src/hci.c \
 	lib/btstack/src/hci_cmd.c \
