@@ -78,6 +78,7 @@ SRC_CYW43 := \
 	lib/cyw43-driver/src/cyw43_lwip.c \
 
 SRC_BTSTACK := \
+    btstack/btstack_tlv_flash.c \
 	lib/btstack/platform/embedded/btstack_tlv_flash_bank.c \
 	lib/btstack/src/ble/le_device_db_tlv.c \
 	lib/btstack/src/btstack_linked_list.c \
