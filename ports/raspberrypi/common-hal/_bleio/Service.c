@@ -71,3 +71,8 @@ bool common_hal_bleio_service_get_is_secondary(bleio_service_obj_t *self) {
 // void common_hal_bleio_service_add_characteristic(bleio_service_obj_t *self,
 //    bleio_characteristic_obj_t *characteristic, mp_buffer_info_t *initial_value_bufinfo,
 //    const char *user_description);
+
+void common_hal_bleio_service_deinit(bleio_service_obj_t *self) {
+    // TODO
+    mp_raise_NotImplementedError(NULL);
+}

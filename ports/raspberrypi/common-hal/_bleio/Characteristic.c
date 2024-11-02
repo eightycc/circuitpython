@@ -98,3 +98,14 @@ void common_hal_bleio_characteristic_set_value(bleio_characteristic_obj_t *self,
     // TODO
     mp_raise_NotImplementedError(NULL);
 }
+
+bool common_hal_bleio_characteristic_deinited(bleio_characteristic_obj_t *self) {
+    // TODO
+    mp_raise_NotImplementedError(NULL);
+    return false;
+}
+
+void common_hal_bleio_characteristic_deinit(bleio_characteristic_obj_t *self) {
+    // TODO
+    mp_raise_NotImplementedError(NULL);
+}

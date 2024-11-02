@@ -63,3 +63,8 @@ void common_hal_bleio_gc_collect(void) {
     // TODO
     mp_printf(&mp_plat_print, "common_hal_bleio_gc_collect\n");
 }
+
+void common_hal_bleio_init(void) {
+    // TODO
+    mp_printf(&mp_plat_print, "common_hal_bleio_init\n");
+}
