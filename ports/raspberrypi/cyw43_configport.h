@@ -16,7 +16,12 @@
 
 #define CYW43_NETUTILS                  (1)
 
-#if CIRCUITPY_USB_DEVICE
+// Enable BLE in the CYW43 driver if board includes a CYW43 chip.
+#if CIRCUITPY_BLEIO
+#define CYW43_ENABLE_BLE                (1)
+#endif
+
+#if CIRCUITPY_USB
 #include "supervisor/usb.h"
 #define CYW43_EVENT_POLL_HOOK usb_background();
 #else
