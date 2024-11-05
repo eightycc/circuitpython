@@ -11,22 +11,24 @@
 #include "py/mphal.h"
 
 #include "supervisor/port.h"
+#include "supervisor/shared/serial.h"
 
-#include "sdk/src/rp2_common/pico_cyw43_driver/include/cyw43_configport.h"
+// CircuitPython CYW43 driver configuration overrides:
+
+// Route all CYW43 debug prints to the debug UART, if it is defined.
+// #define CYW43_PRINTF(...)               console_uart_printf(__VA_ARGS__)
+#define CYW43_PRINTF(...)               mp_printf(&mp_plat_print, __VA_ARGS__)
 
 #define CYW43_NETUTILS                  (1)
 
-// Enable BLE in the CYW43 driver if board includes a CYW43 chip.
-#if CIRCUITPY_BLEIO
-#define CYW43_ENABLE_BLE                (1)
-#endif
-
-#if CIRCUITPY_USB
+#if CIRCUITPY_USB_DEVICE
 #include "supervisor/usb.h"
 #define CYW43_EVENT_POLL_HOOK usb_background();
 #else
 #define CYW43_EVENT_POLL_HOOK
 #endif
+
+#include "sdk/src/rp2_common/pico_cyw43_driver/include/cyw43_configport.h"
 
 void cyw43_post_poll_hook(void);
 extern volatile int cyw43_has_pending;
