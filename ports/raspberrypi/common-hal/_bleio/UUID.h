@@ -3,7 +3,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2023 Bob Abeles
+ * Copyright (c) 2024 Bob Abeles
  * Copyright (c) 2019 Dan Halbert for Adafruit Industries
  * Copyright (c) 2018 Artur Pacholec
  * Copyright (c) 2016 Glenn Ruben Bakke
@@ -29,10 +29,12 @@
 
 #pragma once
 
+#include "stdint.h"
+
 #include "py/obj.h"
 
 // Enum specifies type of UUID as its bit length.
-typedef enum uint8_t {
+typedef enum {
     BLE_UUID_TYPE_16 = 16,
     BLE_UUID_TYPE_32 = 32,
     BLE_UUID_TYPE_128 = 128

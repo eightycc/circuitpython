@@ -12,25 +12,49 @@
     - [Driver Configuration](#driver-configuration)
       - [Configuration Oddities](#configuration-oddities)
   - [BTstack](#btstack)
+    - [BTstack Interface](#btstack-interface)
+      - [Events](#events)
+        - [Events Emitted by BTstack](#events-emitted-by-btstack)
+      - [Timers](#timers)
   - [Debugging](#debugging)
     - [Bluetooth Sniffer](#bluetooth-sniffer)
     - [Pico Probe](#pico-probe)
-  - [`_bleio` and `wifi` Shared Bindings](#_bleio-and-wifi-shared-bindings)
-  - [MicroPython Bluetooth Implementation ](#micropython-bluetooth-implementation-)
-      - [`modbluetooth.[c,h]`](#modbluetoothch)
-      - [`modbluetooth_btstack.[c,h]`](#modbluetooth_btstackch)
-  - [nRF Implementation](#nrf-implementation)
+  - [Pico SDK BTStack Interface](#pico-sdk-btstack-interface)
+      - [`btstack_chipset_cyw43.[c,h]`](#btstack_chipset_cyw43ch)
+      - [`btstack_cyw43.[c,h]`](#btstack_cyw43ch)
+      - [`btstack_hci_transport_cyw43.[c,h]`](#btstack_hci_transport_cyw43ch)
+  - [CircuitPython `_bleio` Shared Bindings](#circuitpython-_bleio-shared-bindings)
       - [`__init__.[c,h]`](#__init__ch)
       - [`Adapter.[c,h]`](#adapterch)
+      - [`Address.[c,h]`](#addressch)
       - [`Attribute.[c,h]`](#attributech)
-      - [`bonding.[c,h]`](#bondingch)
       - [`Characteristic.[c,h]`](#characteristicch)
       - [`CharacteristicBuffer.[c,h]`](#characteristicbufferch)
       - [`Connection.[c,h]`](#connectionch)
       - [`Descriptor.[c,h]`](#descriptorch)
       - [`PacketBuffer.[c,h]`](#packetbufferch)
+      - [`ScanEntry.[c,h]`](#scanentrych)
+      - [`ScanResults.[c,h]`](#scanresultsch)
       - [`Service.[c,h]`](#servicech)
       - [`UUID.[c,h]`](#uuidch)
+  - [`_bleio` and `wifi` Shared Bindings](#_bleio-and-wifi-shared-bindings)
+  - [MicroPython Bluetooth Implementation ](#micropython-bluetooth-implementation-)
+    - [BTStack Events Handled](#btstack-events-handled)
+      - [`modbluetooth.[c,h]`](#modbluetoothch)
+      - [`modbluetooth_btstack.[c,h]`](#modbluetooth_btstackch)
+  - [nRF Implementation](#nrf-implementation)
+    - [Events](#events-1)
+      - [`__init__.[c,h]`](#__init__ch-1)
+      - [`Adapter.[c,h]`](#adapterch-1)
+      - [`Attribute.[c,h]`](#attributech-1)
+      - [`bonding.[c,h]`](#bondingch)
+      - [`Characteristic.[c,h]`](#characteristicch-1)
+      - [`CharacteristicBuffer.[c,h]`](#characteristicbufferch-1)
+      - [`Connection.[c,h]`](#connectionch-1)
+      - [`Descriptor.[c,h]`](#descriptorch-1)
+      - [`PacketBuffer.[c,h]`](#packetbufferch-1)
+      - [`Service.[c,h]`](#servicech-1)
+      - [`UUID.[c,h]`](#uuidch-1)
       - [`ble_drv.[c,h]`](#ble_drvch)
 
 ## Raspberry Pi Pico-W Hardware
@@ -157,6 +181,59 @@ Some options are passed into the build via `CFLAGS_CYW43` in `ports/raspberrypi/
 
 ## BTstack
 
+### BTstack Interface
+
+The Raspberry Pi Pico SDK interfaces with BTstack using the CYW43 driver.
+
+#### Events
+
+BTstack notifies _bleio of events by issuing callbacks to registered event handlers. Internally, BTstack invokes all registered event handlers for any event. This results in overhead growing arithmetically as event handlers are added. To avoid this additional overhead, _bleio registers a single event handler that categorizes all events and invokes only the appropriate secondary event handlers.
+
+##### Events Emitted by BTstack
+
+| Event | Description | Emitter |
+|-------|-------------|---------|
+|GAP_EVENT_PAIRING_STARTED|Pairing started.|hci_pairing_started|
+|GAP_EVENT_PAIRING_COMPLETE|Pairing complete.|hci_pairing_complete|
+|GAP_EVENT_ADVERTISING_REPORT|Advertising report.|le_handle_advertisement_report|
+|GAP_EVENT_ADVERTISING_REPORT|Advertising report.|le_handle_extended_advertisement_report|
+|GAP_EVENT_EXTENDED_ADVERTISING_REPORT|Extended advertising report.|le_handle_extended_advertisement_report|
+|GAP_EVENT_RSSI_MEASUREMENT|RSSI measurement.|handle_command_complete_event|
+|HCI_EVENT_META_GAP<br>GAP_SUBEVENT_ADVERTISING_SET_INSTALLED|Meta GAP event.|handle_command_complete_event|
+|HCI_EVENT_META_GAP<br>GAP_SUBEVENT_ADVERTISING_SET_REMOVED|Meta GAP event.|handle_command_complete_event|
+|GAP_EVENT_INQUIRY_COMPLETE|Inquiry complete.|handle_command_complete_event|
+|GAP_EVENT_LOCAL_OOB_DATA|Local OOB data.|handle_command_complete_event|
+|GAP_EVENT_INQUIRY_COMPLETE|Inquiry complete.|handle_command_complete_event|
+|Packet in event|Notify upper stack|handle_command_complete_event|
+|GAP_EVENT_INQUIRY_RESULT|Inquiry result.|gap_inquiry_explode|
+|BTSTACK_EVENT_STATE|BTstack state.|hci_emit_state|
+|HCI_EVENT_CONNECTION_COMPLETE|Connection complete.|hci_emit_connection_complete|
+|L2CAP_EVENT_TIMEOUT_CHECK|Timeout check.|hci_emit_l2cap_check_timeout|
+|HCI_EVENT_LE_META<br>HCI_SUBEVENT_LE_CONNECTION_COMPLETE|LE meta event.|hci_emit_le_connection_complete|
+|HCI_EVENT_TRANSPORT_PACKET_SENT|Transport packet sent.|hci_emit_transport_packet_sent|
+|HCI_EVENT_DISCONNETION_COMPLETE|Disconnection complete.|hci_emit_disconnection_complete|
+|BTSTACK_EVENT_NR_CONNECTIONS_CHANGED|Number of connections changed.|hci_emit_nr_connections_changed|
+|BTSTACK_EVENT_POWERON_FAILED|Power on failed.|hci_emit_hci_open_failed|
+|GAP_EVENT_DEDICATED_BONDING_COMPLETED|Dedicated bonding completed.|hci_emit_dedicated_bonding_completed|
+|GAP_EVENT_SECURITY_LEVEL|Security level.|hci_emit_security_level|
+|BTSTACK_EVENT_SCAN_MODE_CHANGED|Scan mode changed.|hci_emit_scan_mode_changed|
+|l2cap_trigger_run_event|Trigger run event.|gap_request_connection_parameter_update|
+|GAP_EVENT_INQUIRY_COMPLETE|Inquiry complete.|gap_inquiry_stop|
+|HCI_EVENT_META_GAP<br>GAP_SUBEVENT_BIG_CREATED|Meta GAP event.|hci_emit_big_created|
+|HCI_EVENT_META_GAP<br>GAP_SUBEVENT_CIG_CREATED|Meta GAP event.|hci_emit_cig_created|
+|HCI_EVENT_META_GAP<br>GAP_SUBEVENT_CIS_CREATED|Meta GAP event.|hci_emit_cis_created|
+|HCI_EVENT_META_GAP<br>GAP_SUBEVENT_BIG_TERMINATED|Meta GAP event.|hci_emit_big_terminated|
+|HCI_EVENT_META_GAP<br>GAP_SUBEVENT_BIG_SYNC_CREATED|Meta GAP event.|hci_emit_big_sync_created|
+|HCI_EVENT_META_GAP<br>GAP_SUBEVENT_BIG_SYNC_STOPPED|Meta GAP event.|hci_emit_big_sync_stopped|
+|HCI_EVENT_BIS_CAN_SEND_NOW|BIS can send now.|hci_emit_bis_can_send_now|
+|HCI_EVENT_CIS_CAN_SEND_NOW|CIS can send now.|hci_emit_cis_can_send_now|
+|HCI_STATE_WORKING|HCI state.|hci_init_done|
+|power state|Power state.|hci_power_control|
+|HCI_STATE_HALTING|HCI halting.|hci_halting_run|
+|HCI_STATE_SLEEPING|HCI sleeping.|hci_falling_asleep_run|
+
+#### Timers
+
 ## Debugging
 
 ### Bluetooth Sniffer
@@ -164,6 +241,14 @@ Some options are passed into the build via `CFLAGS_CYW43` in `ports/raspberrypi/
 ### Pico Probe
 
 Connect the pico probe to the RP2040's SWD pins and its debug UART port (GPIO0 and GPIO1). The probe and the RP2040 UUT share a common ground but are powered separately by their USB ports.
+
+| Probe Pico | UUT Pico | Description |
+|------------|----------|----------|
+| GND        | GND      | GND      |
+| GP2        | SWCLK    | SWCLK    |
+| GP3        | SWDIO    | SWDIO    |
+| GP4        | GP1      | UART0 TX |
+| GP5        | GP0      | UART0 RX |
 
 OpenOCD is a locally built version of OpenOCD, `Open On-Chip Debugger 0.11.0-g8e3c38f (2023-08-30-15:11)`.
 
@@ -256,6 +341,1399 @@ xPSR: 0xf1000000 pc: 0x000000ea msp: 0x20041f00
 Continuing.
 ```
 
+## Pico SDK BTStack Interface
+
+#### `btstack_chipset_cyw43.[c,h]`
+
+```c
+static void chipset_set_bd_addr_command(
+    bd_addr_t addr,
+    uint8_t *hci_cmd_buffer);
+```
+
+```c
+static const btstack_chipset_t btstack_chipset_cyw43 = {
+    .name = "CYW43",
+    .init = NULL,
+    .next_command = NULL,
+    .set_baudrate_command = NULL,
+    .set_bd_addr_command = chipset_set_bd_addr_command,
+};
+```
+
+```c
+const btstack_chipset_t * btstack_chipset_cyw43_instance(void);
+```
+
+Returns the `btstack_chipset_cyw43` structure. Passed by `hci_transport_cyw43_open` to `hci_set_chipset` to set the HCI chipset for BTStack.
+
+---
+
+#### `btstack_cyw43.[c,h]`
+
+```c
+static void setup_tlv(void);
+```
+Sets up flash storage for TLV (Tag Length Value) persistent binding data.
+
+```c
+bool btstack_cyw43_init(
+    async_context_t *context);
+```
+
+Invoked by `cyw43_arch_init()` to initialize bluetooth:
+* Call `btstack_memory_init()` to initialize memory pools.
+* Call `btstack_run_loop_init()` to initialize run loop.
+* Call `hci_init(hci_transport_cyw43_instance(), NULL)` to initialize HCI.
+```c
+void btstack_cyw43_deinit(
+    __unused async_context_t *context);
+```
+Invoked by `cyw43_arch_deinit()` to deinitialize bluetooth:
+* Call `hci_power_control(HCI_POWER_OFF)` to power off bluetooth.
+* Call `hci_close()` to close bluetooth HCI.
+* Call `btstack_run_loop_deinit()` to deinitialize run loop.
+* Call `btstack_memory_deinit()` to deinitialize memory pools.
+
+---
+#### `btstack_hci_transport_cyw43.[c,h]`
+
+```c
+static void hci_transport_data_source_process(
+    btstack_data_source_t *ds,
+    btstack_data_source_callback_type_t callback_type);
+```
+
+```c
+static void hci_transport_cyw43_init(
+    const void *transport_config);
+```
+
+```c
+static int hci_transport_cyw43_open(void);
+```
+
+```c
+static int hci_transport_cyw43_close(void);
+```
+
+```c
+static void hci_transport_cyw43_register_packet_handler(
+    void (*handler)(uint8_t packet_type, uint8_t *packet, uint16_t size));
+```
+
+```c
+static int hci_transport_cyw43_can_send_now(
+    uint8_t packet_type);
+```
+
+```c
+static int hci_transport_cyw43_send_packet(
+    uint8_t packet_type,
+    uint8_t *packet,
+    int size);
+```
+
+```c
+static const hci_transport_t hci_transport_cyw43 = {
+        /* const char * name; */                                        "CYW43",
+        /* void   (*init) (const void *transport_config); */            &hci_transport_cyw43_init,
+        /* int    (*open)(void); */                                     &hci_transport_cyw43_open,
+        /* int    (*close)(void); */                                    &hci_transport_cyw43_close,
+        /* void   (*register_packet_handler)(void (*handler)(...); */   &hci_transport_cyw43_register_packet_handler,
+        /* int    (*can_send_packet_now)(uint8_t packet_type); */       &hci_transport_cyw43_can_send_now,
+        /* int    (*send_packet)(...); */                               &hci_transport_cyw43_send_packet,
+        /* int    (*set_baudrate)(uint32_t baudrate); */                NULL,
+        /* void   (*reset_link)(void); */                               NULL,
+        /* void   (*set_sco_config)(uint16_t voice_setting, int num_connections); */ NULL,
+};
+```
+
+```c
+const hci_transport_t *hci_transport_cyw43_instance(void);
+```
+
+```c
+static void hci_transport_cyw43_process(void);
+```
+
+```c
+void cyw43_bluetooth_hci_process(void);
+```
+
+## CircuitPython `_bleio` Shared Bindings
+---
+#### `__init__.[c,h]`
+
+```c
+const mp_obj_module_t bleio_module = {
+    .base = { &mp_type_module },
+    .globals = (mp_obj_dict_t *)&bleio_module_globals,
+};
+
+MP_REGISTER_MODULE(MP_QSTR__bleio, bleio_module);
+```
+
+```c
+#if CIRCUITPY_BLEIO_HCI
+// Make the module dictionary be in RAM, so that _bleio.adapter can be set.
+// Use a local macro to define how table entries should be converted.
+#define OBJ_FROM_PTR MP_OBJ_FROM_PTR
+STATIC mp_map_elem_t bleio_module_globals_table[] = {
+#else
+#define OBJ_FROM_PTR MP_ROM_PTR
+STATIC const mp_rom_map_elem_t bleio_module_globals_table[] = {
+    #endif
+    // Name must be the first entry so that the exception printing below is correct.
+    { MP_ROM_QSTR(MP_QSTR___name__),             MP_ROM_QSTR(MP_QSTR__bleio) },
+    { MP_ROM_QSTR(MP_QSTR_Adapter),              OBJ_FROM_PTR(&bleio_adapter_type) },
+    { MP_ROM_QSTR(MP_QSTR_Address),              OBJ_FROM_PTR(&bleio_address_type) },
+    { MP_ROM_QSTR(MP_QSTR_Attribute),            OBJ_FROM_PTR(&bleio_attribute_type) },
+    { MP_ROM_QSTR(MP_QSTR_Connection),           OBJ_FROM_PTR(&bleio_connection_type) },
+    { MP_ROM_QSTR(MP_QSTR_Characteristic),       OBJ_FROM_PTR(&bleio_characteristic_type) },
+    { MP_ROM_QSTR(MP_QSTR_CharacteristicBuffer), OBJ_FROM_PTR(&bleio_characteristic_buffer_type) },
+    { MP_ROM_QSTR(MP_QSTR_Descriptor),           OBJ_FROM_PTR(&bleio_descriptor_type) },
+    { MP_ROM_QSTR(MP_QSTR_PacketBuffer),         OBJ_FROM_PTR(&bleio_packet_buffer_type) },
+    { MP_ROM_QSTR(MP_QSTR_ScanEntry),            OBJ_FROM_PTR(&bleio_scanentry_type) },
+    { MP_ROM_QSTR(MP_QSTR_ScanResults),          OBJ_FROM_PTR(&bleio_scanresults_type) },
+    { MP_ROM_QSTR(MP_QSTR_Service),              OBJ_FROM_PTR(&bleio_service_type) },
+    { MP_ROM_QSTR(MP_QSTR_UUID),                 OBJ_FROM_PTR(&bleio_uuid_type) },
+
+    #if CIRCUITPY_BLEIO_HCI
+    // For HCI, _bleio.adapter is settable, and starts as None.
+    { MP_ROM_QSTR(MP_QSTR_adapter),              mp_const_none },
+    { MP_ROM_QSTR(MP_QSTR_set_adapter),          (mp_obj_t)&bleio_set_adapter_obj },
+    #else
+    // For non-HCI _bleio.adapter is a fixed singleton, and is not settable.
+    // _bleio.set_adapter will raise NotImplementedError.
+    { MP_ROM_QSTR(MP_QSTR_adapter),              MP_ROM_PTR(&common_hal_bleio_adapter_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_adapter),          MP_ROM_PTR(&bleio_set_adapter_obj) },
+    #endif
+
+    // Errors
+    { MP_ROM_QSTR(MP_QSTR_BluetoothError),       OBJ_FROM_PTR(&mp_type_bleio_BluetoothError) },
+    { MP_ROM_QSTR(MP_QSTR_RoleError),            OBJ_FROM_PTR(&mp_type_bleio_RoleError) },
+    { MP_ROM_QSTR(MP_QSTR_SecurityError),        OBJ_FROM_PTR(&mp_type_bleio_SecurityError) },
+
+    // Initialization
+    { MP_ROM_QSTR(MP_QSTR___init__),             OBJ_FROM_PTR(&bleio___init___obj) },
+};
+```
+
+```c
+MP_DEFINE_BLEIO_EXCEPTION(BluetoothError, Exception)
+
+NORETURN void mp_raise_bleio_BluetoothError(
+    mp_rom_error_text_t fmt, ...);
+```
+
+```c
+MP_DEFINE_BLEIO_EXCEPTION(RoleError, bleio_BluetoothError)
+
+NORETURN void mp_raise_bleio_RoleError(
+    mp_rom_error_text_t msg);
+```
+
+```c
+MP_DEFINE_BLEIO_EXCEPTION(SecurityError, bleio_BluetoothError)
+
+NORETURN void mp_raise_bleio_SecurityError(
+    mp_rom_error_text_t fmt, ...);
+```
+
+```c
+STATIC mp_obj_t bleio___init__(void);
+```
+
+Invokes `common_hal_bleio_adapter_set_enabled` to set the adapter's enabled state to `true`.
+
+```c
+mp_obj_t bleio_set_adapter(
+    mp_obj_t adapter_obj);
+
+MP_DEFINE_CONST_FUN_OBJ_1(bleio_set_adapter_obj, bleio_set_adapter);
+```
+---
+#### `Adapter.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_adapter_type,
+    MP_QSTR_Adapter,
+    MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    make_new, bleio_adapter_make_new,
+    locals_dict, &bleio_adapter_locals_dict
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_adapter_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_enabled), MP_ROM_PTR(&bleio_adapter_enabled_obj) },
+    { MP_ROM_QSTR(MP_QSTR_address), MP_ROM_PTR(&bleio_adapter_address_obj) },
+    { MP_ROM_QSTR(MP_QSTR_name),    MP_ROM_PTR(&bleio_adapter_name_obj) },
+
+    { MP_ROM_QSTR(MP_QSTR_start_advertising), MP_ROM_PTR(&bleio_adapter_start_advertising_obj) },
+    { MP_ROM_QSTR(MP_QSTR_stop_advertising),  MP_ROM_PTR(&bleio_adapter_stop_advertising_obj) },
+    { MP_ROM_QSTR(MP_QSTR_advertising),   MP_ROM_PTR(&bleio_adapter_advertising_obj) },
+
+    { MP_ROM_QSTR(MP_QSTR_start_scan), MP_ROM_PTR(&bleio_adapter_start_scan_obj) },
+    { MP_ROM_QSTR(MP_QSTR_stop_scan),  MP_ROM_PTR(&bleio_adapter_stop_scan_obj) },
+
+    { MP_ROM_QSTR(MP_QSTR_connect),    MP_ROM_PTR(&bleio_adapter_connect_obj) },
+
+    { MP_ROM_QSTR(MP_QSTR_connected),   MP_ROM_PTR(&bleio_adapter_connected_obj) },
+    { MP_ROM_QSTR(MP_QSTR_connections), MP_ROM_PTR(&bleio_adapter_connections_obj) },
+
+    { MP_ROM_QSTR(MP_QSTR_erase_bonding), MP_ROM_PTR(&bleio_adapter_erase_bonding_obj) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(bleio_adapter_locals_dict, bleio_adapter_locals_dict_table);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_make_new(
+    const mp_obj_type_t *type,
+    size_t n_args,
+    size_t n_kw,
+    const mp_obj_t *all_args);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_get_enabled(
+    mp_obj_t self);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_adapter_get_enabled_obj,
+    bleio_adapter_get_enabled);
+```
+
+```c
+static mp_obj_t bleio_adapter_set_enabled(
+    mp_obj_t self,
+    mp_obj_t value);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(
+    bleio_adapter_set_enabled_obj,
+    bleio_adapter_set_enabled);
+
+MP_PROPERTY_GETSET(bleio_adapter_enabled_obj,
+    (mp_obj_t)&bleio_adapter_get_enabled_obj,
+    (mp_obj_t)&bleio_adapter_set_enabled_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_get_address(
+    mp_obj_t self);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_adapter_get_address_obj,
+    bleio_adapter_get_address);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_set_address(
+    mp_obj_t self,
+    mp_obj_t new_address);
+
+MP_DEFINE_CONST_FUN_OBJ_2(
+    bleio_adapter_set_address_obj,
+    bleio_adapter_set_address);
+
+MP_PROPERTY_GETSET(bleio_adapter_address_obj,
+    (mp_obj_t)&bleio_adapter_get_address_obj,
+    (mp_obj_t)&bleio_adapter_set_address_obj);
+```
+
+```c
+STATIC mp_obj_t _bleio_adapter_get_name(
+    mp_obj_t self);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_adapter_get_name_obj,
+    _bleio_adapter_get_name);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_set_name(
+    mp_obj_t self,
+    mp_obj_t new_name);
+
+MP_DEFINE_CONST_FUN_OBJ_2(
+    bleio_adapter_set_name_obj,
+    bleio_adapter_set_name);
+
+MP_PROPERTY_GETSET(bleio_adapter_name_obj,
+    (mp_obj_t)&bleio_adapter_get_name_obj,
+    (mp_obj_t)&bleio_adapter_set_name_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_start_advertising(
+    mp_uint_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_adapter_start_advertising_obj,
+    1,
+    bleio_adapter_start_advertising);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_stop_advertising(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_adapter_stop_advertising_obj,
+    bleio_adapter_stop_advertising);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_start_scan(
+    size_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_adapter_start_scan_obj,
+    1,
+    bleio_adapter_start_scan);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_stop_scan(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_adapter_stop_scan_obj,
+    bleio_adapter_stop_scan);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_get_advertising(
+    mp_obj_t self);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_adapter_get_advertising_obj,
+    bleio_adapter_get_advertising);
+
+MP_PROPERTY_GETTER(bleio_adapter_advertising_obj,
+    (mp_obj_t)&bleio_adapter_get_advertising_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_get_connected(
+    mp_obj_t self);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_adapter_get_connected_obj,
+    bleio_adapter_get_connected);
+
+MP_PROPERTY_GETTER(bleio_adapter_connected_obj,
+    (mp_obj_t)&bleio_adapter_get_connected_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_get_connections(
+    mp_obj_t self);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_adapter_get_connections_obj,
+    bleio_adapter_get_connections);
+
+MP_PROPERTY_GETTER(bleio_adapter_connections_obj,
+    (mp_obj_t)&bleio_adapter_get_connections_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_connect(
+    mp_uint_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_adapter_connect_obj,
+    1,
+    bleio_adapter_connect);
+```
+
+```c
+STATIC mp_obj_t bleio_adapter_erase_bonding(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_adapter_erase_bonding_obj,
+    bleio_adapter_erase_bonding);
+```
+---
+#### `Address.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_address_type,
+    MP_QSTR_Address,
+    MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    make_new, bleio_address_make_new,
+    print, bleio_address_print,
+    locals_dict, &bleio_address_locals_dict,
+    unary_op, bleio_address_unary_op,
+    binary_op, bleio_address_binary_op
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_address_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_address_bytes),                 MP_ROM_PTR(&bleio_address_address_bytes_obj) },
+    { MP_ROM_QSTR(MP_QSTR_type),                          MP_ROM_PTR(&bleio_address_type_obj) },
+    // These match the BLE_GAP_ADDR_TYPES values used by the nRF library.
+    { MP_ROM_QSTR(MP_QSTR_PUBLIC),                        MP_ROM_INT(0) },
+    { MP_ROM_QSTR(MP_QSTR_RANDOM_STATIC),                 MP_ROM_INT(1) },
+    { MP_ROM_QSTR(MP_QSTR_RANDOM_PRIVATE_RESOLVABLE),     MP_ROM_INT(2) },
+    { MP_ROM_QSTR(MP_QSTR_RANDOM_PRIVATE_NON_RESOLVABLE), MP_ROM_INT(3) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(bleio_address_locals_dict, bleio_address_locals_dict_table);
+```
+
+```c
+STATIC mp_obj_t bleio_address_make_new(
+    const mp_obj_type_t *type,
+    size_t n_args,
+    size_t n_kw,
+    const mp_obj_t *all_args);
+```
+
+```c
+STATIC mp_obj_t bleio_address_get_address_bytes(
+    mp_obj_t self_in);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_address_get_address_bytes_obj,
+    bleio_address_get_address_bytes);
+
+MP_PROPERTY_GETTER(bleio_address_address_bytes_obj,
+    (mp_obj_t)&bleio_address_get_address_bytes_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_address_get_type(
+    mp_obj_t self_in);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_address_get_type_obj,
+    bleio_address_get_type);
+
+MP_PROPERTY_GETTER(bleio_address_type_obj,
+    (mp_obj_t)&bleio_address_get_type_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_address_binary_op(
+    mp_binary_op_t op,
+    mp_obj_t lhs_in,
+    mp_obj_t rhs_in);
+```
+
+```c
+STATIC mp_obj_t bleio_address_unary_op(
+    mp_unary_op_t op,
+    mp_obj_t self_in);
+```
+
+```c
+STATIC void bleio_address_print(
+    const mp_print_t *print,
+    mp_obj_t self_in,
+    mp_print_kind_t kind);
+```
+
+#### `Attribute.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_attribute_type,
+    MP_QSTR_Attribute,
+    MP_TYPE_FLAG_NONE,
+    locals_dict, &bleio_attribute_locals_dict
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_attribute_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_NO_ACCESS),              MP_ROM_INT(SECURITY_MODE_NO_ACCESS) },
+    { MP_ROM_QSTR(MP_QSTR_OPEN),                   MP_ROM_INT(SECURITY_MODE_OPEN) },
+    { MP_ROM_QSTR(MP_QSTR_ENCRYPT_NO_MITM),        MP_ROM_INT(SECURITY_MODE_ENC_NO_MITM) },
+    { MP_ROM_QSTR(MP_QSTR_ENCRYPT_WITH_MITM),      MP_ROM_INT(SECURITY_MODE_ENC_WITH_MITM) },
+    { MP_ROM_QSTR(MP_QSTR_LESC_ENCRYPT_WITH_MITM), MP_ROM_INT(SECURITY_MODE_LESC_ENC_WITH_MITM) },
+    { MP_ROM_QSTR(MP_QSTR_SIGNED_NO_MITM),         MP_ROM_INT(SECURITY_MODE_SIGNED_NO_MITM) },
+    { MP_ROM_QSTR(MP_QSTR_SIGNED_WITH_MITM),       MP_ROM_INT(SECURITY_MODE_SIGNED_WITH_MITM) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(bleio_attribute_locals_dict, bleio_attribute_locals_dict_table);
+```
+
+#### `Characteristic.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_characteristic_type,
+    MP_QSTR_Characteristic,
+    MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    print, bleio_characteristic_print,
+    locals_dict, &bleio_characteristic_locals_dict
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_characteristic_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_add_to_service), MP_ROM_PTR(&bleio_characteristic_add_to_service_obj) },
+    { MP_ROM_QSTR(MP_QSTR_descriptors),    MP_ROM_PTR(&bleio_characteristic_descriptors_obj) },
+    { MP_ROM_QSTR(MP_QSTR_properties),     MP_ROM_PTR(&bleio_characteristic_properties_obj) },
+    { MP_ROM_QSTR(MP_QSTR_uuid),           MP_ROM_PTR(&bleio_characteristic_uuid_obj) },
+    { MP_ROM_QSTR(MP_QSTR_value),          MP_ROM_PTR(&bleio_characteristic_value_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_cccd),       MP_ROM_PTR(&bleio_characteristic_set_cccd_obj) },
+    { MP_ROM_QSTR(MP_QSTR_BROADCAST),         MP_ROM_INT(CHAR_PROP_BROADCAST) },
+    { MP_ROM_QSTR(MP_QSTR_INDICATE),          MP_ROM_INT(CHAR_PROP_INDICATE) },
+    { MP_ROM_QSTR(MP_QSTR_NOTIFY),            MP_ROM_INT(CHAR_PROP_NOTIFY) },
+    { MP_ROM_QSTR(MP_QSTR_READ),              MP_ROM_INT(CHAR_PROP_READ) },
+    { MP_ROM_QSTR(MP_QSTR_WRITE),             MP_ROM_INT(CHAR_PROP_WRITE) },
+    { MP_ROM_QSTR(MP_QSTR_WRITE_NO_RESPONSE), MP_ROM_INT(CHAR_PROP_WRITE_NO_RESPONSE) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(bleio_characteristic_locals_dict, bleio_characteristic_locals_dict_table);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_add_to_service(
+    size_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_characteristic_add_to_service_fun_obj,
+    1,
+    bleio_characteristic_add_to_service);
+
+STATIC MP_DEFINE_CONST_CLASSMETHOD_OBJ(
+    bleio_characteristic_add_to_service_obj,
+    MP_ROM_PTR(&bleio_characteristic_add_to_service_fun_obj));
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_get_properties(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_characteristic_get_properties_obj,
+    bleio_characteristic_get_properties);
+
+MP_PROPERTY_GETTER(bleio_characteristic_properties_obj,
+    (mp_obj_t)&bleio_characteristic_get_properties_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_get_uuid(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_characteristic_get_uuid_obj,
+    bleio_characteristic_get_uuid);
+
+MP_PROPERTY_GETTER(bleio_characteristic_uuid_obj,
+    (mp_obj_t)&bleio_characteristic_get_uuid_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_get_value(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_characteristic_get_value_obj,
+    bleio_characteristic_get_value);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_set_value(
+    mp_obj_t self_in,
+    mp_obj_t value_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(
+    bleio_characteristic_set_value_obj,
+    bleio_characteristic_set_value);
+
+MP_PROPERTY_GETSET(bleio_characteristic_value_obj,
+    (mp_obj_t)&bleio_characteristic_get_value_obj,
+    (mp_obj_t)&bleio_characteristic_set_value_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_get_max_length(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_characteristic_get_max_length_obj,
+    bleio_characteristic_get_max_length);
+
+MP_PROPERTY_GETTER(bleio_characteristic_max_length_obj,
+    (mp_obj_t)&bleio_characteristic_get_max_length_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_get_descriptors(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_characteristic_get_descriptors_obj,
+    bleio_characteristic_get_descriptors);
+
+MP_PROPERTY_GETTER(bleio_characteristic_descriptors_obj,
+    (mp_obj_t)&bleio_characteristic_get_descriptors_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_get_service(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_characteristic_get_service_obj,
+    bleio_characteristic_get_service);
+
+MP_PROPERTY_GETTER(bleio_characteristic_service_obj,
+    (mp_obj_t)&bleio_characteristic_get_service_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_set_cccd(
+    mp_uint_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_characteristic_set_cccd_obj,
+    1,
+    bleio_characteristic_set_cccd);
+```
+
+```c
+STATIC void bleio_characteristic_print(
+    const mp_print_t *print,
+    mp_obj_t self_in,
+    mp_print_kind_t kind);
+```
+
+#### `CharacteristicBuffer.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_characteristic_buffer_type,
+    MP_QSTR_CharacteristicBuffer,
+    MP_TYPE_FLAG_ITER_IS_ITERNEXT | MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    make_new, bleio_characteristic_buffer_make_new,
+    locals_dict, &bleio_characteristic_buffer_locals_dict,
+    iter, mp_stream_unbuffered_iter,
+    protocol, &characteristic_buffer_stream_p
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_characteristic_buffer_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_deinit),        MP_ROM_PTR(&bleio_characteristic_buffer_deinit_obj) },
+
+    // Standard stream methods.
+    { MP_OBJ_NEW_QSTR(MP_QSTR_read),     MP_ROM_PTR(&mp_stream_read_obj) },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_readline), MP_ROM_PTR(&mp_stream_unbuffered_readline_obj)},
+    { MP_OBJ_NEW_QSTR(MP_QSTR_readinto), MP_ROM_PTR(&mp_stream_readinto_obj) },
+    // CharacteristicBuffer is currently read-only.
+    // { MP_OBJ_NEW_QSTR(MP_QSTR_write),    MP_ROM_PTR(&mp_stream_write_obj) },
+
+    { MP_OBJ_NEW_QSTR(MP_QSTR_reset_input_buffer), MP_ROM_PTR(&bleio_characteristic_buffer_reset_input_buffer_obj) },
+    // Properties
+    { MP_ROM_QSTR(MP_QSTR_in_waiting), MP_ROM_PTR(&bleio_characteristic_buffer_in_waiting_obj) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(
+    bleio_characteristic_buffer_locals_dict,
+    bleio_characteristic_buffer_locals_dict_table);
+```
+
+```c
+STATIC const mp_stream_p_t characteristic_buffer_stream_p = {
+    MP_PROTO_IMPLEMENT(MP_QSTR_protocol_stream)
+    .read = bleio_characteristic_buffer_read,
+    .write = bleio_characteristic_buffer_write,
+    .ioctl = bleio_characteristic_buffer_ioctl,
+    .is_text = false,
+    // Disallow readinto() size parameter.
+    .pyserial_readinto_compatibility = true,
+};
+```
+
+```c
+STATIC void raise_error_if_not_connected(
+    bleio_characteristic_buffer_obj_t *self);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_buffer_make_new(
+    const mp_obj_type_t *type,
+    size_t n_args,
+    size_t n_kw,
+    const mp_obj_t *all_args);
+```
+
+```c
+STATIC void check_for_deinit(
+    bleio_characteristic_buffer_obj_t *self);
+```
+
+```c
+STATIC mp_uint_t bleio_characteristic_buffer_read(
+    mp_obj_t self_in,
+    void *buf_in,
+    mp_uint_t size,
+    int *errcode);
+```
+
+```c
+STATIC mp_uint_t bleio_characteristic_buffer_write(
+    mp_obj_t self_in,
+    const void *buf_in,
+    mp_uint_t size,
+    int *errcode);
+```
+
+```c
+STATIC mp_uint_t bleio_characteristic_buffer_ioctl(
+    mp_obj_t self_in,
+    mp_uint_t request,
+    mp_uint_t arg,
+    int *errcode);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_buffer_obj_get_in_waiting(
+    mp_obj_t self_in);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_characteristic_buffer_get_in_waiting_obj,
+    bleio_characteristic_buffer_obj_get_in_waiting);
+
+MP_PROPERTY_GETTER(bleio_characteristic_buffer_in_waiting_obj,
+    (mp_obj_t)&bleio_characteristic_buffer_get_in_waiting_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_buffer_obj_reset_input_buffer(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_characteristic_buffer_reset_input_buffer_obj,
+    bleio_characteristic_buffer_obj_reset_input_buffer);
+```
+
+```c
+STATIC mp_obj_t bleio_characteristic_buffer_deinit(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_characteristic_buffer_deinit_obj,
+    bleio_characteristic_buffer_deinit);
+```
+
+#### `Connection.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_connection_type,
+    MP_QSTR_Connection,
+    MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    locals_dict, &bleio_connection_locals_dict
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_connection_locals_dict_table[] = {
+    // Methods
+    { MP_ROM_QSTR(MP_QSTR_pair),                     MP_ROM_PTR(&bleio_connection_pair_obj) },
+    { MP_ROM_QSTR(MP_QSTR_disconnect),               MP_ROM_PTR(&bleio_connection_disconnect_obj) },
+    { MP_ROM_QSTR(MP_QSTR_discover_remote_services), MP_ROM_PTR(&bleio_connection_discover_remote_services_obj) },
+
+    // Properties
+    { MP_ROM_QSTR(MP_QSTR_connected),           MP_ROM_PTR(&bleio_connection_connected_obj) },
+    { MP_ROM_QSTR(MP_QSTR_paired),              MP_ROM_PTR(&bleio_connection_paired_obj) },
+    { MP_ROM_QSTR(MP_QSTR_connection_interval), MP_ROM_PTR(&bleio_connection_connection_interval_obj) },
+    { MP_ROM_QSTR(MP_QSTR_max_packet_length),   MP_ROM_PTR(&bleio_connection_max_packet_length_obj) },
+};
+```
+
+```c
+void bleio_connection_ensure_connected(
+    bleio_connection_obj_t *self);
+```
+
+```c
+STATIC mp_obj_t bleio_connection_disconnect(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_connection_disconnect_obj,
+    bleio_connection_disconnect);
+```
+
+```c
+STATIC mp_obj_t bleio_connection_pair(
+    mp_uint_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_connection_pair_obj,
+    1,
+    bleio_connection_pair);
+```
+
+```c
+STATIC mp_obj_t bleio_connection_discover_remote_services(
+    mp_uint_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_connection_discover_remote_services_obj,
+    1,
+    bleio_connection_discover_remote_services);
+```
+
+```c
+STATIC mp_obj_t bleio_connection_get_connected(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_connection_get_connected_obj,
+    bleio_connection_get_connected);
+
+MP_PROPERTY_GETTER(bleio_connection_connected_obj,
+    (mp_obj_t)&bleio_connection_get_connected_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_connection_get_paired(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_connection_get_paired_obj,
+    bleio_connection_get_paired);
+
+MP_PROPERTY_GETTER(bleio_connection_paired_obj,
+    (mp_obj_t)&bleio_connection_get_paired_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_connection_get_connection_interval(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_connection_get_connection_interval_obj,
+    bleio_connection_get_connection_interval);
+```
+
+```c
+STATIC mp_obj_t bleio_connection_set_connection_interval(
+    mp_obj_t self_in,
+    mp_obj_t interval_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(
+    bleio_connection_set_connection_interval_obj,
+    bleio_connection_set_connection_interval);
+
+MP_PROPERTY_GETSET(bleio_connection_connection_interval_obj,
+    (mp_obj_t)&bleio_connection_get_connection_interval_obj,
+    (mp_obj_t)&bleio_connection_set_connection_interval_obj);
+
+MP_PROPERTY_GETTER(bleio_connection_max_packet_length_obj,
+    (mp_obj_t)&bleio_connection_get_max_packet_length_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_connection_get_max_packet_length(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_connection_get_max_packet_length_obj,
+    bleio_connection_get_max_packet_length);
+```
+
+#### `Descriptor.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_descriptor_type,
+    MP_QSTR_Descriptor,
+    MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    print, bleio_descriptor_print,
+    locals_dict, &bleio_descriptor_locals_dict
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_descriptor_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_add_to_characteristic), MP_ROM_PTR(&bleio_descriptor_add_to_characteristic_obj) },
+    { MP_ROM_QSTR(MP_QSTR_uuid), MP_ROM_PTR(&bleio_descriptor_uuid_obj) },
+    { MP_ROM_QSTR(MP_QSTR_characteristic), MP_ROM_PTR(&bleio_descriptor_characteristic_obj) },
+    { MP_ROM_QSTR(MP_QSTR_value), MP_ROM_PTR(&bleio_descriptor_value_obj) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(bleio_descriptor_locals_dict, bleio_descriptor_locals_dict_table);
+```
+
+```c
+STATIC mp_obj_t bleio_descriptor_add_to_characteristic(
+    size_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_descriptor_add_to_characteristic_fun_obj,
+    1,
+    bleio_descriptor_add_to_characteristic);
+STATIC MP_DEFINE_CONST_CLASSMETHOD_OBJ(
+    bleio_descriptor_add_to_characteristic_obj,
+    MP_ROM_PTR(&bleio_descriptor_add_to_characteristic_fun_obj));
+```
+
+```c
+STATIC mp_obj_t bleio_descriptor_get_uuid(
+    mp_obj_t self_in);
+
+MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_descriptor_get_uuid_obj,
+    bleio_descriptor_get_uuid);
+
+MP_PROPERTY_GETTER(bleio_descriptor_uuid_obj,
+    (mp_obj_t)&bleio_descriptor_get_uuid_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_descriptor_get_characteristic(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_descriptor_get_characteristic_obj,
+    bleio_descriptor_get_characteristic);
+
+MP_PROPERTY_GETTER(bleio_descriptor_characteristic_obj,
+    (mp_obj_t)&bleio_descriptor_get_characteristic_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_descriptor_get_value(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_descriptor_get_value_obj,
+    bleio_descriptor_get_value);
+```
+
+```c
+STATIC mp_obj_t bleio_descriptor_set_value(
+    mp_obj_t self_in,
+    mp_obj_t value_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(
+    bleio_descriptor_set_value_obj,
+    bleio_descriptor_set_value);
+
+MP_PROPERTY_GETSET(bleio_descriptor_value_obj,
+    (mp_obj_t)&bleio_descriptor_get_value_obj,
+    (mp_obj_t)&bleio_descriptor_set_value_obj);
+```
+
+```c
+STATIC void bleio_descriptor_print(
+    const mp_print_t *print,
+    mp_obj_t self_in,
+    mp_print_kind_t kind);
+```
+
+#### `PacketBuffer.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_packet_buffer_type,
+    MP_QSTR_PacketBuffer,
+    MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    make_new, bleio_packet_buffer_make_new,
+    locals_dict, &bleio_packet_buffer_locals_dict
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_packet_buffer_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_deinit),                     MP_ROM_PTR(&bleio_packet_buffer_deinit_obj) },
+
+    // Standard stream methods.
+    { MP_OBJ_NEW_QSTR(MP_QSTR_readinto),               MP_ROM_PTR(&bleio_packet_buffer_readinto_obj) },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_write),                  MP_ROM_PTR(&bleio_packet_buffer_write_obj) },
+
+    { MP_OBJ_NEW_QSTR(MP_QSTR_incoming_packet_length), MP_ROM_PTR(&bleio_packet_buffer_incoming_packet_length_obj) },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_outgoing_packet_length), MP_ROM_PTR(&bleio_packet_buffer_outgoing_packet_length_obj) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(bleio_packet_buffer_locals_dict, bleio_packet_buffer_locals_dict_table);
+```
+
+```c
+STATIC mp_obj_t bleio_packet_buffer_make_new(
+    const mp_obj_type_t *type,
+    size_t n_args,
+    size_t n_kw,
+    const mp_obj_t *all_args);
+```
+
+```c
+STATIC void check_for_deinit(
+    bleio_packet_buffer_obj_t *self);
+```
+
+```c
+STATIC mp_obj_t bleio_packet_buffer_readinto(
+    mp_obj_t self_in,
+    mp_obj_t buffer_obj);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_2(
+    bleio_packet_buffer_readinto_obj,
+    bleio_packet_buffer_readinto);
+```
+
+```c
+STATIC mp_obj_t bleio_packet_buffer_write(
+    mp_uint_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_packet_buffer_write_obj,
+    1,
+    bleio_packet_buffer_write);
+```
+
+```c
+STATIC mp_obj_t bleio_packet_buffer_deinit(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_packet_buffer_deinit_obj,
+    bleio_packet_buffer_deinit);
+```
+
+```c
+STATIC mp_obj_t bleio_packet_buffer_get_incoming_packet_length(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_packet_buffer_get_incoming_packet_length_obj,
+    bleio_packet_buffer_get_incoming_packet_length);
+
+MP_PROPERTY_GETTER(bleio_packet_buffer_incoming_packet_length_obj,
+    (mp_obj_t)&bleio_packet_buffer_get_incoming_packet_length_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_packet_buffer_get_outgoing_packet_length(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_packet_buffer_get_outgoing_packet_length_obj,
+    bleio_packet_buffer_get_outgoing_packet_length);
+
+MP_PROPERTY_GETTER(bleio_packet_buffer_outgoing_packet_length_obj,
+    (mp_obj_t)&bleio_packet_buffer_get_outgoing_packet_length_obj);
+```
+
+#### `ScanEntry.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_scanentry_type,
+    MP_QSTR_ScanEntry,
+    MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    locals_dict, &bleio_scanentry_locals_dict
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_scanentry_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_address),             MP_ROM_PTR(&bleio_scanentry_address_obj) },
+    { MP_ROM_QSTR(MP_QSTR_advertisement_bytes), MP_ROM_PTR(&bleio_scanentry_advertisement_bytes_obj) },
+    { MP_ROM_QSTR(MP_QSTR_rssi),                MP_ROM_PTR(&bleio_scanentry_rssi_obj) },
+    { MP_ROM_QSTR(MP_QSTR_connectable),         MP_ROM_PTR(&bleio_scanentry_connectable_obj) },
+    { MP_ROM_QSTR(MP_QSTR_scan_response),       MP_ROM_PTR(&bleio_scanentry_scan_response_obj) },
+    { MP_ROM_QSTR(MP_QSTR_matches),             MP_ROM_PTR(&bleio_scanentry_matches_obj) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(bleio_scanentry_locals_dict, bleio_scanentry_locals_dict_table);
+```
+
+```c
+STATIC mp_obj_t bleio_scanentry_matches(
+    mp_uint_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(
+    bleio_scanentry_matches_obj,
+    1,
+    bleio_scanentry_matches);
+```
+
+```c
+STATIC mp_obj_t bleio_scanentry_get_address(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_scanentry_get_address_obj,
+    bleio_scanentry_get_address);
+
+MP_PROPERTY_GETTER(bleio_scanentry_address_obj,
+    (mp_obj_t)&bleio_scanentry_get_address_obj);
+```
+
+```c
+STATIC mp_obj_t scanentry_get_advertisement_bytes(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_scanentry_get_advertisement_bytes_obj,
+    scanentry_get_advertisement_bytes);
+
+MP_PROPERTY_GETTER(bleio_scanentry_advertisement_bytes_obj,
+    (mp_obj_t)&bleio_scanentry_get_advertisement_bytes_obj);
+```
+
+```c
+STATIC mp_obj_t scanentry_get_rssi(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_scanentry_get_rssi_obj,
+    scanentry_get_rssi);
+
+MP_PROPERTY_GETTER(bleio_scanentry_rssi_obj,
+    (mp_obj_t)&bleio_scanentry_get_rssi_obj);
+```
+
+```c
+STATIC mp_obj_t scanentry_get_connectable(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_scanentry_get_connectable_obj,
+    scanentry_get_connectable);
+
+MP_PROPERTY_GETTER(bleio_scanentry_connectable_obj,
+    (mp_obj_t)&bleio_scanentry_get_connectable_obj);
+```
+
+```c
+STATIC mp_obj_t scanentry_get_scan_response(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(
+    bleio_scanentry_get_scan_response_obj,
+    scanentry_get_scan_response);
+
+MP_PROPERTY_GETTER(bleio_scanentry_scan_response_obj,
+    (mp_obj_t)&bleio_scanentry_get_scan_response_obj);
+```
+
+#### `ScanResults.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_scanresults_type,
+    MP_QSTR_ScanResults,
+    MP_TYPE_FLAG_ITER_IS_ITERNEXT,
+    iter, scanresults_iternext
+    );
+```
+
+```c
+STATIC mp_obj_t scanresults_iternext(
+    mp_obj_t self_in);
+```
+
+#### `Service.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_service_type,
+    MP_QSTR_Service,
+    MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    make_new, bleio_service_make_new,
+    print, bleio_service_print,
+    locals_dict, &bleio_service_locals_dict
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_service_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_characteristics),   MP_ROM_PTR(&bleio_service_characteristics_obj) },
+    { MP_ROM_QSTR(MP_QSTR_secondary),         MP_ROM_PTR(&bleio_service_secondary_obj) },
+    { MP_ROM_QSTR(MP_QSTR_uuid),              MP_ROM_PTR(&bleio_service_uuid_obj) },
+    { MP_ROM_QSTR(MP_QSTR_remote),            MP_ROM_PTR(&bleio_service_remote_obj) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(bleio_service_locals_dict, bleio_service_locals_dict_table);
+```
+
+```c
+STATIC mp_obj_t bleio_service_make_new(
+    const mp_obj_type_t *type,
+    size_t n_args,
+    size_t n_kw,
+    const mp_obj_t *all_args);
+```
+
+```c
+STATIC mp_obj_t bleio_service_get_characteristics(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(bleio_service_get_characteristics_obj, bleio_service_get_characteristics);
+
+MP_PROPERTY_GETTER(bleio_service_characteristics_obj,
+    (mp_obj_t)&bleio_service_get_characteristics_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_service_get_remote(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(bleio_service_get_remote_obj, bleio_service_get_remote);
+
+MP_PROPERTY_GETTER(bleio_service_remote_obj,
+    (mp_obj_t)&bleio_service_get_remote_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_service_get_secondary(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(bleio_service_get_secondary_obj, bleio_service_get_secondary);
+
+MP_PROPERTY_GETTER(bleio_service_secondary_obj,
+    (mp_obj_t)&bleio_service_get_secondary_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_service_get_uuid(
+    mp_obj_t self_in);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(bleio_service_get_uuid_obj, bleio_service_get_uuid);
+
+MP_PROPERTY_GETTER(bleio_service_uuid_obj,
+    (mp_obj_t)&bleio_service_get_uuid_obj);
+```
+
+```c
+STATIC void bleio_service_print(
+    const mp_print_t *print,
+    mp_obj_t self_in,
+    mp_print_kind_t kind);
+```
+
+#### `UUID.[c,h]`
+
+```c
+MP_DEFINE_CONST_OBJ_TYPE(
+    bleio_uuid_type,
+    MP_QSTR_UUID,
+    MP_TYPE_FLAG_HAS_SPECIAL_ACCESSORS,
+    print, bleio_uuid_print,
+    make_new, bleio_uuid_make_new,
+    locals_dict, &bleio_uuid_locals_dict,
+    unary_op, bleio_uuid_unary_op,
+    binary_op, bleio_uuid_binary_op
+    );
+```
+
+```c
+STATIC const mp_rom_map_elem_t bleio_uuid_locals_dict_table[] = {
+    { MP_ROM_QSTR(MP_QSTR_uuid16), MP_ROM_PTR(&bleio_uuid_uuid16_obj) },
+    { MP_ROM_QSTR(MP_QSTR_uuid128), MP_ROM_PTR(&bleio_uuid_uuid128_obj) },
+    { MP_ROM_QSTR(MP_QSTR_size), MP_ROM_PTR(&bleio_uuid_size_obj) },
+    { MP_ROM_QSTR(MP_QSTR_pack_into), MP_ROM_PTR(&bleio_uuid_pack_into_obj) },
+};
+
+STATIC MP_DEFINE_CONST_DICT(bleio_uuid_locals_dict, bleio_uuid_locals_dict_table);
+```
+
+```c
+STATIC mp_obj_t bleio_uuid_make_new(
+    const mp_obj_type_t *type,
+    size_t n_args,
+    size_t n_kw,
+    const mp_obj_t *all_args);
+```
+
+```c
+STATIC mp_obj_t bleio_uuid_get_uuid16(
+    mp_obj_t self_in);
+
+MP_DEFINE_CONST_FUN_OBJ_1(bleio_uuid_get_uuid16_obj, bleio_uuid_get_uuid16);
+
+MP_PROPERTY_GETTER(bleio_uuid_uuid16_obj,
+    (mp_obj_t)&bleio_uuid_get_uuid16_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_uuid_get_uuid128(
+    mp_obj_t self_in);
+
+MP_DEFINE_CONST_FUN_OBJ_1(bleio_uuid_get_uuid128_obj, bleio_uuid_get_uuid128);
+
+MP_PROPERTY_GETTER(bleio_uuid_uuid128_obj,
+    (mp_obj_t)&bleio_uuid_get_uuid128_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_uuid_get_size(
+    mp_obj_t self_in);
+
+MP_DEFINE_CONST_FUN_OBJ_1(bleio_uuid_get_size_obj, bleio_uuid_get_size);
+
+MP_PROPERTY_GETTER(bleio_uuid_size_obj,
+    (mp_obj_t)&bleio_uuid_get_size_obj);
+```
+
+```c
+STATIC mp_obj_t bleio_uuid_pack_into(
+    mp_uint_t n_args,
+    const mp_obj_t *pos_args,
+    mp_map_t *kw_args);
+
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(bleio_uuid_pack_into_obj, 1, bleio_uuid_pack_into);
+```
+
+```c
+STATIC mp_obj_t bleio_uuid_unary_op(
+    mp_unary_op_t op,
+    mp_obj_t self_in);
+```
+
+```c
+STATIC mp_obj_t bleio_uuid_binary_op(
+    mp_binary_op_t op,
+    mp_obj_t lhs_in,
+    mp_obj_t rhs_in);
+```
+
+```c
+void bleio_uuid_print(
+    const mp_print_t *print,
+    mp_obj_t self_in,
+    mp_print_kind_t kind);
+```
+
 ## `_bleio` and `wifi` Shared Bindings
 
 
@@ -263,6 +1741,59 @@ Continuing.
 ## MicroPython Bluetooth Implementation <a name="mp_ble"></a>
 
 ---
+
+### BTStack Events Handled
+
+|Type|Usage|Notes|
+|----|-----|-----|
+| `HCI_EVENT_PACKET` | `btstack_packet_handler_att_server` | filter incoming packet type |
+| `ATT_EVENT_CONNECTED` | `btstack_packet_handler_att_server` | |
+| `ATT_EVENT_HANDLE_VALUE_INDICATION_COMPLETE` | `btstack_packet_handler_att_server` | |
+| `ATT_EVENT_MTU_EXCHANGE_COMPLETE` | `btstack_packet_handler_att_server` | |
+| `HCI_EVENT_LE_META` | `btstack_packet_handler_att_server` | |
+| `HCI_EVENT_DISCONNECTION_COMPLETE` | `btstack_packet_handler_att_server` | |
+||||
+| `HCI_EVENT_PACKET` | `btstack_packet_handler_generic` | filter incoming packet type |
+| `HCI_EVENT_LE_META`<br>`HCI_SUBEVENT_LE_CONNECTION_COMPLETE`| `btstack_packet_handler_generic` | |
+| `HCI_EVENT_LE_META`<br>`HCI_SUBEVENT_LE_CONNECTION_UPDATE_COMPLETE` | `btstack_packet_handler_generic` | |
+| `BTSTACK_EVENT_STATE`<br>`HCI_STATE_WORKING` | `btstack_packet_handler_generic` | |
+| `BTSTACK_EVENT_STATE`<br>`HCI_STATE_HALTING` | `btstack_packet_handler_generic` | |
+| `BTSTACK_EVENT_STATE`<br>`HCI_STATE_OFF` | `btstack_packet_handler_generic` | |
+| `BTSTACK_EVENT_POWERON_FAILED` | `btstack_packet_handler_generic` | |
+| `HCI_EVENT_TRANSPORT_PACKET_SENT` | `btstack_packet_handler_generic` | |
+| `HCI_EVENT_COMMAND_COMPLETE` | `btstack_packet_handler_generic` | |
+| `HCI_EVENT_COMMAND_STATUS` | `btstack_packet_handler_generic` | |
+| `HCI_EVENT_NUMBER_OF_COMPLETED_PACKETS` | `btstack_packet_handler_generic` | |
+| `BTSTACK_EVENT_NR_CONNECTIONS_CHANGED` | `btstack_packet_handler_generic` | |
+| `HCI_EVENT_VENDOR_SPECIFIC` | `btstack_packet_handler_generic` | |
+| `SM_EVENT_AUTHORIZATION_RESULT` | `btstack_packet_handler_generic` | |
+| `SM_EVENT_PAIRING_COMPLETE` | `btstack_packet_handler_generic` | |
+| `HCI_EVENT_ENCRYPTION_CHANGE` | `btstack_packet_handler_generic` | |
+| `HCI_EVENT_DISCONNECTION_COMPLETE` | `btstack_packet_handler_generic` | |
+| `GAP_EVENT_ADVERTISING_REPORT` | `btstack_packet_handler_generic` | |
+| `GATT_EVENT_MTU` | `btstack_packet_handler_generic` | |
+| `GATT_EVENT_NOTIFICATION` | `btstack_packet_handler_generic` | |
+| `GATT_EVENT_INDICATION` | `btstack_packet_handler_generic` | |
+| `GATT_EVENT_CAN_WRITE_WITHOUT_RESPONSE` | `btstack_packet_handler_generic` | |
+||||
+| `HCI_EVENT_PACKET` | `btstack_packet_handler_discover_services` | filter incoming packet type |
+| `GATT_EVENT_SERVICE_QUERY_RESULT` | `btstack_packet_handler_discover_services` | |
+| `GATT_EVENT_QUERY_COMPLETE` | `btstack_packet_handler_discover_services` | |
+||||
+| `HCI_EVENT_PACKET` | `btstack_packet_handler_discover_characteristics` | filter incoming packet type |
+| `GATT_EVENT_CHARACTERISTIC_QUERY_RESULT` | `btstack_packet_handler_discover_characteristics` | |
+| `GATT_EVENT_QUERY_COMPLETE` | `btstack_packet_handler_discover_characteristics` | |
+||||
+| `HCI_EVENT_PACKET` | `btstack_packet_handler_discover_descriptors` | filter incoming packet type |
+| `GATT_EVENT_ALL_CHARACTERISTIC_DESCRIPTORS_QUERY_RESULT` | `btstack_packet_handler_discover_descriptors` | |
+| `GATT_EVENT_QUERY_COMPLETE` | `btstack_packet_handler_discover_descriptors` | |
+||||
+| `HCI_EVENT_PACKET` | `btstack_packet_handler_read` | filter incoming packet type |
+| `GATT_EVENT_QUERY_COMPLETE` | `btstack_packet_handler_read` | |
+| `GATT_EVENT_CHARACTERISTIC_VALUE_QUERY_RESULT` | `btstack_packet_handler_read` | |
+||||
+| `HCI_EVENT_PACKET` | `btstack_packet_handler_write_with_response` | filter incoming packet type |
+| `GATT_EVENT_QUERY_COMPLETE` | `btstack_packet_handler_write_with_response` | |
 
 #### `modbluetooth.[c,h]`
 
@@ -1353,15 +2884,40 @@ STATIC void deinit_stack(void);
 int mp_bluetooth_init(void);
 ```
 
-Initialize BTStack:
-
-* Invoke `mp_bluetooth_deinit` to cleanup as necessary.
-* Invoke `btstack_memory_init`.
-*
+Invoked by `bluetooth_ble_active()` to initialize the Bluetooth stack.
+* Invoke `mp_bluetooth_deinit()` to cleanup as necessary.
+* Invoke `btstack_memory_init()` to initialize BTStack memory.
+* Initialize `bluetooth_btstack_root_pointers` to all zeroes.
+* Invoke `mp_bluetooth_gatts_db_create()` to initialize the GATT server database.
+* Create a GATT server database entry for our GAP device name ("MPY BTSTACK").
+* Invoke `mp_bluetooth_gap_set_device_name()` to set the GAP device name.
+* Invoke `mp_bluetooth_btstack_port_init()` to initialize the BTStack port.
+  * Invoke `btstack_run_loop_init()` to initialize the BTStack run loop.
+  * Invoke `hci_init(hci_transport_cyw43_instance(), NULL)` to initialize the HCI layer.
+* Invoke `l2cap_init()` to initialize L2CAP.
+* Invoke `le_device_db_init()` to initialize the LE device database.
+* Invoke `sm_init()` to initialize the Security Manager.
+* Set up dummy ER/IR keys to suppress BTStack warning.
+* Invoke `gatt_client_init()` to initialize the GATT client.
+* Invoke `gatt_client_mtu_enable_auto_negotiation(false)` to require explicit MTU negotiation.
+* Invoke `hci_add_event_handler(&hci_event_callback_registration)` to register the HCI event handler.
+* Invoke `btstack_run_loop_set_timer(&btstack_init_deinit_timeout, BTSTACK_INIT_DEINIT_TIMEOUT_MS)` to set the init/deinit timeout.
+* Invoke `btstack_run_loop_set_timer_handler(&btstack_init_deinit_timeout, btstack_init_deinit_timeout_handler)` to set the init/deinit timeout handler.
+* Invoke `btstack_run_loop_add_timer(&btstack_init_deinit_timeout)` to add the init/deinit timeout timer.
+* Invoke `mp_bluetooth_port_start()`:
+  * Invoke `hci_power_control(HCI_POWER_ON)` to power on the controller.
+* Wait for BTStack to start.
+* Invoke `btstack_run_loop_remove_timer(&btstack_init_deinit_timeout)` to remove the init/deinit timeout timer.
+* Handle timeout during BTStack startup and return error.
+* If there is no public address, invoke `set_random_address()` to set a random address.
+* Invoke `gatt_client_listen_for_characteristic_value_updates(&notification)` to register the GATT client notification handler.
+* Invoke `mp_bluetooth_gatts_register_service_begin(false)` to register the GATT server service.
+* Invoke `mp_bluetooth_gatts_register_service_end()`.
 
 ```c
 void mp_bluetooth_deinit(void);
 ```
+*
 
 ```c
 bool mp_bluetooth_is_active(void);
@@ -1665,6 +3221,21 @@ MP_REGISTER_ROOT_POINTER(struct _mp_bluetooth_btstack_root_pointers_t *bluetooth
 
 ## nRF Implementation
 
+### Events
+
+|module|event handler|_handler_entry_t|context|
+|---|---|---|---|
+|`__init__.c`|`_on_gattc_read_rsp_evt`|dynamic|stack, blocking|
+|`Adapter.c`|`connection_on_ble_evt`|dynamic, heap<br>`connection->handler_entry`|static<br>`bleio_connections[]`|
+|`Adapter.c`|`adapter_on_ble_evt`|static<br>`adapter->connection_handler_entry`|static<br>`bleio_adapter_obj_t`|
+|`Adapter.c`|`scan_on_ble_evt`|dynamic|static<br>`bleio_adapter_obj_t->scan_results`|
+|`Adapter.c`|`connect_on_ble_evt`|dynamic|stack, blocking|
+|`Adapter.c`|`advertising_on_ble_evt`|static<br>`adapter->advertising_handler_entry`|static<br>`bleio_adapter_obj_t`|
+|`CharacteristicBuffer.c`|`characteristic_buffer_on_ble_evt`|static (bt serial) or dynamic|heap<br>`bleio_characteristic_buffer_obj_t`|
+|`Connection.c`|`discovery_on_ble_evt`|dynamic|static<br>`bleio_connection_internal_t`|
+|`PacketBuffer.c`|`packet_buffer_on_ble_client_evt`|static or dynamic|heap<br>`bleio_packet_buffer_obj_t`|
+|`PacketBuffer.c`|`packet_buffer_on_ble_server_evt`|static or dynamic|heap<br>`bleio_packet_buffer_obj_t`|
+
 Connections are identified by a 16-bit connection handle. The connection handle is assigned by the BLE stack when a connection is established. The connection handle is used to identify the connection in all subsequent calls to the BLE stack.
 
 ---
@@ -1840,10 +3411,17 @@ Invoked by `common_hal_bleio_adapter_set_enabled` to enable the BLE stack. It ta
 * Invokes `sd_softdevice_enable` to enable the BLE stack.
 * Invokes `sd_nvic_EnableIRQ` to enable the BLE IRQ.
 * Invokes `ble_drv_reset` to reset event handlers and reset flash operation state.
-* Initializes a `ble_cfg_t` and passes it to `sd_ble_cfg_set` to configure the BLE stack.
+* Initializes a `ble_cfg_t` and passes it to `sd_ble_cfg_set` to configure the BLE stack:
+  * GAP connection configuration `BLE_CONN_CFG_GAP`:
+  * GAP role count configuration `BLE_GAP_CFG_ROLE_COUNT`:
+  * GATTS connection configuration `BLE_CONN_CFG_GATTS`:
+  * GATT connection configuration `BLE_CONN_CFG_GATT`:
+  * GATTS service changed configuration `BLE_GATTS_CFG_SERVICE_CHANGED`:
+  * GATTS attribute table size configuration `BLE_GATTS_CFG_ATTR_TAB_SIZE`:
+  * Vendor specific UUID count configuration `BLE_VS_UUID_COUNT`:
 * Invokes `sd_ble_enable` to enable the BLE stack.
 * Sets `BLE_COMMON_OPT_CONN_EVT_EXT` to enable extended connection events.
-* Passes `ble_gap_conn_params_t` to `sd_ble_gap_ppcp_set` to set the preferred connection parameters.
+* Passes `ble_gap_conn_params_t` to `sd_ble_gap_ppcp_set` to set the preferred connection parameters. These are: `BLE_MIN_CONN_INTERVAL`, `BLE_MAX_CONN_INTERVAL`, `BLE_SLAVE_LATENCY`, `BLE_CONN_SUP_TIMEOUT`.
 * Passes `BLE_APPERANCE_UNKNOWN` to `sd_ble_gap_appearance_set` to set the appearance.
 
 ```c
@@ -1852,8 +3430,20 @@ STATIC bool adapter_on_ble_evt(
     void *self_in);
 ```
 
-Adapter's connect/disconnect event handler. Invoked by the BLE stack when an event occurs. It is registered with the BLE stack or removed by `common_hal_bleio_adapter_set_enabled`. Events handled are:
-* `BLE_GAP_EVT_CONNECTED`
+Adapter's connect/disconnect event handler. Invoked by the BLE stack when an event occurs. It is registered with the BLE stack or removed by `common_hal_bleio_adapter_set_enabled`.
+
+* Invokes `background_callback_add_core` to queue runs of `supervisor_bluetooth_background` and `bleio_background`.
+
+Events handled are:
+* `BLE_GAP_EVT_CONNECTED`:
+  * Allocate an unused `bleio_connection_internal_t`.
+  * Get a pointer to the `ble_gap_evt_connected_t` from the BLE event.
+  * Initialize the connection:
+    * Copy the connection handle from the event.
+    * Set connection object to `mp_const_none`.
+    * Set pair status to `PAIR_NOT_PAIRED`.
+    * Set MTU to 0.
+    * Copy connection parameters from the event.
 * `BLE_GAP_EVT_DISCONNECTED`
 
 ```c
@@ -1877,6 +3467,8 @@ void common_hal_bleio_adapter_set_enabled(
     bleio_adapter_obj_t *self,
     bool enabled);
 ```
+
+
 
 ```c
 bool common_hal_bleio_adapter_get_enabled(

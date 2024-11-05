@@ -46,6 +46,10 @@
 #define MICROPY_PY_LWIP_EXIT    cyw43_arch_lwip_end();
 #endif
 
+#ifdef CIRCUITPY_BLEIO
+#include "btstack/btstack_evts.h"
+#endif
+
 // Protect the background queue with a lock because both cores may modify it.
 #include "pico/critical_section.h"
 extern critical_section_t background_queue_lock;

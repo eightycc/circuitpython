@@ -3,8 +3,8 @@
  *
  * The MIT License (MIT)
  *
+ * Copyright (c) 2024 Bob Abeles
  * Copyright (c) 2019-2020 Scott Shawcroft for Adafruit Industries
- * Copyright (c) 2023 Bob Abeles
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,11 @@
 // #include "shared-bindings/_bleio/Connection.h"
 #include "shared-bindings/_bleio/PacketBuffer.h"
 // #include "supervisor/shared/tick.h"
+
+// packet event handler
+// STATIC void packet_buffer_client_evt(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size) {
+//
+// }
 
 void common_hal_bleio_packet_buffer_construct(
     bleio_packet_buffer_obj_t *self, bleio_characteristic_obj_t *characteristic,

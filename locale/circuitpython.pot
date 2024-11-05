@@ -461,6 +461,15 @@ msgstr ""
 msgid "AP could not be started"
 msgstr ""
 
+#: ports/raspberrypi/common-hal/_bleio/Attribute.c
+#, c-format
+msgid "ATT error %x reading value"
+msgstr ""
+
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "Adapter is not enabled"
+msgstr ""
+
 #: shared-bindings/_bleio/Address.c shared-bindings/ipaddress/IPv4Address.c
 #, c-format
 msgid "Address must be %d bytes long"
@@ -474,6 +483,10 @@ msgstr ""
 
 #: shared-bindings/memorymap/AddressRange.c
 msgid "Address range wraps around"
+msgstr ""
+
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "Advertising in progress"
 msgstr ""
 
 #: ports/espressif/common-hal/canio/CAN.c
@@ -617,6 +630,18 @@ msgid ""
 "disable.\n"
 msgstr ""
 
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "BTstack deinit while changing state"
+msgstr ""
+
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "BTstack failed to power off"
+msgstr ""
+
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "BTstack failed to power on"
+msgstr ""
+
 #: ports/espressif/common-hal/canio/CAN.c
 msgid "Baudrate not supported by peripheral"
 msgstr ""
@@ -632,6 +657,15 @@ msgstr ""
 
 #: shared-bindings/bitmaptools/__init__.c
 msgid "Bitmap size and bits per value must match"
+msgstr ""
+
+#: ports/raspberrypi/common-hal/_bleio/Attribute.c
+#, c-format
+msgid "Bluetooth error %x reading value"
+msgstr ""
+
+#: ports/raspberrypi/common-hal/_bleio/Attribute.c
+msgid "Bluetooth internal logic error"
 msgstr ""
 
 #: supervisor/shared/safe_mode.c
@@ -967,6 +1001,10 @@ msgstr ""
 msgid "Failed to allocate %q buffer"
 msgstr ""
 
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "Failed to allocate ScanResults object and buffer"
+msgstr ""
+
 #: ports/espressif/common-hal/wifi/__init__.c
 msgid "Failed to allocate Wifi memory"
 msgstr ""
@@ -1249,6 +1287,14 @@ msgstr ""
 msgid "Invalid data_pins[%d]"
 msgstr ""
 
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "Invalid device address"
+msgstr ""
+
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "Invalid device address type"
+msgstr ""
+
 #: shared-module/msgpack/__init__.c
 msgid "Invalid format"
 msgstr ""
@@ -1317,6 +1363,10 @@ msgstr ""
 #: ports/espressif/common-hal/_bleio/Characteristic.c
 #: ports/espressif/common-hal/_bleio/Descriptor.c
 msgid "MITM security not supported"
+msgstr ""
+
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "Malformed address buffer"
 msgstr ""
 
 #: shared-bindings/is31fl3741/IS31FL3741.c
@@ -1903,6 +1953,10 @@ msgstr ""
 #: ports/espressif/common-hal/_bleio/Adapter.c
 #: ports/nordic/common-hal/_bleio/Adapter.c
 msgid "Scan already in progress. Stop with stop_scan."
+msgstr ""
+
+#: ports/raspberrypi/common-hal/_bleio/Adapter.c
+msgid "Scan in progress"
 msgstr ""
 
 #: ports/atmel-samd/common-hal/audiobusio/I2SOut.c

@@ -3,7 +3,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2023 Bob Abeles
+ * Copyright (c) 2024 Bob Abeles
  * Copyright (c) 2018 Dan Halbert for Adafruit Industries
  * Copyright (c) 2018 Artur Pacholec
  * Copyright (c) 2016 Glenn Ruben Bakke
@@ -28,7 +28,7 @@
  */
 
 #include "py/runtime.h"
-#include "common-hal/_bleio/UUID.h"
+// #include "common-hal/_bleio/UUID.h"
 #include "shared-bindings/_bleio/UUID.h"
 
 void common_hal_bleio_uuid_construct(bleio_uuid_obj_t *self,

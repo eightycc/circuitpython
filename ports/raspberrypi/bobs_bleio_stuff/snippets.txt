@@ -1,0 +1,12 @@
+minicom -D /dev/ttyACMx -b 115200
+
+openocd -f interface/cmsis-dap.cfg -c "adapter speed 5000" -f target/rp2040.cfg -s tcl
+
+arm-none-eabi-gdb build-raspberry_pi_pico_w/firmware.elf
+
+target remote localhost:3333
+
+_bleio.adapter.address = _bleio.Address(bytearray([0xc0, 0x01, 0x02, 0x03, 0x04, 0x05]), _bleio.Address.RANDOM_STATIC)
+_bleio.adapter.address = _bleio.Address(bytearray([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]), _bleio.Address.RANDOM_STATIC)
+
+_bleio.adapter.address = _bleio.Address(bytearray([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]), _bleio.Address.PUBLIC)

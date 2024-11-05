@@ -3,9 +3,9 @@
  *
  * The MIT License (MIT)
  *
+ * Copyright (c) 2024 Bob Abeles
  * Copyright (c) 2018 Dan Halbert for Adafruit Industries
  * Copyright (c) 2018 Artur Pacholec
- * Copyright (c) 2023 Bob Abeles
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,8 +28,15 @@
 
 #pragma once
 
+#include "stdint.h"
+#include "stdbool.h"
+
+#include "py/obj.h"
 #include "py/objlist.h"
-#include "common-hal/_bleio/UUID.h"
+
+// #include "shared-bindings/_bleio/Service.h"
+// #include "shared-bindings/_bleio/Characteristic.h"
+#include "shared-bindings/_bleio/UUID.h"
 
 typedef struct bleio_service_obj {
     mp_obj_base_t base;

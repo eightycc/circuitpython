@@ -3,9 +3,9 @@
  *
  * The MIT License (MIT)
  *
+ * Copyright (c) 2024 Bob Abeles
  * Copyright (c) 2019 Dan Halbert for Adafruit Industries
  * Copyright (c) 2018 Artur Pacholec
- * Copyright (c) 2023 Bob Abeles
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,18 +28,13 @@
 
 #pragma once
 
-#include <stdbool.h>
+#include "stdint.h"
 
 #include "py/obj.h"
 #include "py/objlist.h"
 
 #include "common-hal/_bleio/__init__.h"
-// #include "common-hal/_bleio/bonding.h"
-#include "shared-module/_bleio/Address.h"
-#include "common-hal/_bleio/Service.h"
-
-// #include "host/ble_gap.h"
-
+#include "common-hal/_bleio/Attribute.h"
 typedef enum {
     PAIR_NOT_PAIRED,
     PAIR_WAITING,
@@ -72,6 +67,7 @@ typedef struct {
     // Time of setting do_bond_ccds: we delay a bit to consolidate multiple CCCD changes
     // into one write. Time is currently in ticks_ms.
     uint64_t do_bond_cccds_request_time;
+    bleio_gattc_read_t *read_context;
 } bleio_connection_internal_t;
 
 typedef struct {
@@ -80,3 +76,5 @@ typedef struct {
     // The HCI disconnect reason.
     uint8_t disconnect_reason;
 } bleio_connection_obj_t;
+
+bleio_connection_internal_t *bleio_conn_handle_to_connection(uint16_t conn_handle);

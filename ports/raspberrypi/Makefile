@@ -77,9 +77,13 @@ SRC_CYW43 := \
 	lib/cyw43-driver/src/cyw43_lwip.c \
 
 SRC_BTSTACK := \
+	btstack/btstack_evts.c \
     btstack/btstack_tlv_flash.c \
+	btstack/hci_dump_mp_printf.c \
 	lib/btstack/platform/embedded/btstack_tlv_flash_bank.c \
 	lib/btstack/src/ble/le_device_db_tlv.c \
+	lib/btstack/src/ble/sm.c \
+	lib/btstack/src/btstack_crypto.c \
 	lib/btstack/src/btstack_linked_list.c \
 	lib/btstack/src/btstack_memory.c \
 	lib/btstack/src/btstack_memory_pool.c \
@@ -89,6 +93,8 @@ SRC_BTSTACK := \
 	lib/btstack/src/hci.c \
 	lib/btstack/src/hci_cmd.c \
 	lib/btstack/src/hci_dump.c \
+	lib/btstack/src/l2cap.c \
+	lib/btstack/src/l2cap_signaling.c \
 
 PIOASM = $(BUILD)/pioasm/pioasm/pioasm
 .PHONY: pioasmBuild

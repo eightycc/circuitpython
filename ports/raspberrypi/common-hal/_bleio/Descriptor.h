@@ -3,10 +3,10 @@
  *
  * The MIT License (MIT)
  *
+ * Copyright (c) 2024 Bob Abeles
  * Copyright (c) 2018 Dan Halbert for Adafruit Industries
  * Copyright (c) 2018 Artur Pacholec
  * Copyright (c) 2016 Glenn Ruben Bakke
- * Copyright (c) 2023 Bob Abeles
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,11 +29,12 @@
 
 #pragma once
 
+#include "stdint.h"
+#include "stdbool.h"
+
 #include "py/obj.h"
 
-#include "common-hal/_bleio/UUID.h"
-
-// #include "host/ble_gatt.h"
+// #include "shared-bindings/_bleio/Characteristic.h"
 
 // Forward declare characteristic because it includes a Descriptor.
 struct _bleio_characteristic_obj;
