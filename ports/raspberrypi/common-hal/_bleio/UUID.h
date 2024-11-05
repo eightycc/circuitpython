@@ -3,10 +3,10 @@
  *
  * The MIT License (MIT)
  *
+ * Copyright (c) 2023 Bob Abeles
  * Copyright (c) 2019 Dan Halbert for Adafruit Industries
  * Copyright (c) 2018 Artur Pacholec
  * Copyright (c) 2016 Glenn Ruben Bakke
- * Copyright (c) 2023 Bob Abeles
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -31,14 +31,28 @@
 
 #include "py/obj.h"
 
-// #include "host/ble_uuid.h"
+// Enum specifies type of UUID as its bit length.
+typedef enum uint8_t {
+    BLE_UUID_TYPE_16 = 16,
+    BLE_UUID_TYPE_32 = 32,
+    BLE_UUID_TYPE_128 = 128
+} ble_uuid_type_t;
+
+typedef uint16_t ble_uuid16_t;
+typedef uint32_t ble_uuid32_t;
+typedef uint8_t ble_uuid128_t[16];
+
+typedef struct {
+    ble_uuid_type_t type;
+    union {
+        ble_uuid16_t uuid16;
+        ble_uuid32_t uuid32;
+        ble_uuid128_t uuid128;
+    } uuid;
+} ble_uuid_t;
 
 typedef struct {
     mp_obj_base_t base;
-    // Use the native way of storing UUID's:
-    // - ble_uuid_t.uuid is a 16-bit uuid.
-    // - ble_uuid_t.type is BLE_UUID_TYPE_BLE if it's a 16-bit Bluetooth SIG UUID.
-    //   or is BLE_UUID_TYPE_VENDOR_BEGIN and higher, which indexes into a table of registered
-    //   128-bit UUIDs.
-    // ble_uuid_any_t nimble_ble_uuid;
+    // UUIDs are stored as a union of the three possible UUID sizes.
+    ble_uuid_t ble_uuid;
 } bleio_uuid_obj_t;
