@@ -16,3 +16,7 @@
 
 #define CIRCUITPY_BOARD_I2C         (1)
 #define CIRCUITPY_BOARD_I2C_PIN     {{.scl = &pin_GPIO5, .sda = &pin_GPIO4}}
+
+// Uncomment to enable REPL and debug output over UART0 (TX/RX) pins
+#define CIRCUITPY_CONSOLE_UART_RX (&pin_GPIO1)
+#define CIRCUITPY_CONSOLE_UART_TX (&pin_GPIO0)
