@@ -1274,6 +1274,7 @@ msgid "Invalid socket for TLS"
 msgstr ""
 
 #: ports/espressif/common-hal/espidf/__init__.c
+#: ports/nordic/common-hal/_bleio/__init__.c
 msgid "Invalid state"
 msgstr ""
 
@@ -1970,7 +1971,8 @@ msgstr ""
 msgid "The length of rgb_pins must be 6, 12, 18, 24, or 30"
 msgstr ""
 
-#: shared-module/audiodelays/Echo.c shared-module/audiomixer/MixerVoice.c
+#: shared-module/audiodelays/Echo.c shared-module/audiofilters/Filter.c
+#: shared-module/audiomixer/MixerVoice.c
 msgid "The sample's %q does not match"
 msgstr ""
 
@@ -2085,12 +2087,24 @@ msgstr ""
 msgid "USB error"
 msgstr ""
 
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "UUID"
+msgstr ""
+
 #: shared-bindings/_bleio/UUID.c
 msgid "UUID integer value must be 0-0xffff"
 msgstr ""
 
 #: shared-bindings/_bleio/UUID.c
 msgid "UUID string not 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "UUID too long"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "UUID too short"
 msgstr ""
 
 #: shared-bindings/_bleio/UUID.c
@@ -2504,7 +2518,8 @@ msgstr ""
 msgid "bits must be 32 or less"
 msgstr ""
 
-#: shared-bindings/audiodelays/Echo.c shared-bindings/audiomixer/Mixer.c
+#: shared-bindings/audiodelays/Echo.c shared-bindings/audiofilters/Filter.c
+#: shared-bindings/audiomixer/Mixer.c
 msgid "bits_per_sample must be 8 or 16"
 msgstr ""
 
@@ -2678,6 +2693,10 @@ msgstr ""
 
 #: py/runtime.c
 msgid "can't set attribute '%q'"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "can't specify pos and kw args"
 msgstr ""
 
 #: py/emitnative.c
@@ -3276,6 +3295,14 @@ msgstr ""
 msgid "interval must be in range %s-%s"
 msgstr ""
 
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "invalid UUID"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "invalid addr"
+msgstr ""
+
 #: py/compile.c
 msgid "invalid arch"
 msgstr ""
@@ -3287,6 +3314,22 @@ msgstr ""
 
 #: shared-module/ssl/SSLSocket.c
 msgid "invalid cert"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "invalid char in UUID"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "invalid characteristic UUID"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "invalid characteristic tuple"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "invalid descriptor UUID"
 msgstr ""
 
 #: shared-bindings/bitmaptools/__init__.c
@@ -3307,6 +3350,10 @@ msgstr ""
 msgid "invalid format specifier"
 msgstr ""
 
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "invalid handler"
+msgstr ""
+
 #: shared-bindings/wifi/Radio.c
 msgid "invalid hostname"
 msgstr ""
@@ -3317,6 +3364,10 @@ msgstr ""
 
 #: py/compile.c
 msgid "invalid micropython decorator"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "invalid service UUID"
 msgstr ""
 
 #: ports/espressif/common-hal/espcamera/Camera.c
@@ -3496,6 +3547,10 @@ msgstr ""
 
 #: py/objtype.c
 msgid "multiple inheritance not supported"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "must query one param"
 msgstr ""
 
 #: py/emitnative.c
@@ -4182,6 +4237,10 @@ msgstr ""
 
 #: py/parse.c
 msgid "unindent doesn't match any outer indent level"
+msgstr ""
+
+#: ports/raspberrypi/bobs_bleio_stuff/modbluetooth.c
+msgid "unknown config param"
 msgstr ""
 
 #: py/objstr.c
