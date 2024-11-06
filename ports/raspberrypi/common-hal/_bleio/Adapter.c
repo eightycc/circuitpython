@@ -109,8 +109,25 @@ STATIC bool adapter_event_handler(uint8_t *event, uint16_t event_size, void *con
             return true;
 
         // Advertising report events for possible forwarding to ScanResults.
-        case GAP_EVENT_ADVERTISING_REPORT:
+        // BTstack may issue multiple advertising reports, one for each report in the HCI event.
         case GAP_EVENT_EXTENDED_ADVERTISING_REPORT:
+            return true;
+        case GAP_EVENT_ADVERTISING_REPORT:
+            if (self->scan_results != NULL) {
+                bd_addr_t report_address;
+                gap_event_advertising_report_get_address(event, report_address);
+                shared_module_bleio_scanresults_append(
+                    self->scan_results,
+                    supervisor_ticks_ms64(),
+                    (gap_event_advertising_report_get_advertising_event_type(event) == 0x00)
+                    || (gap_event_advertising_report_get_advertising_event_type(event) == 0x01),
+                    gap_event_advertising_report_get_advertising_event_type(event) == 0x04,
+                    gap_event_advertising_report_get_rssi(event),
+                    report_address,
+                    gap_event_advertising_report_get_address_type(event),
+                    gap_event_advertising_report_get_data(event),
+                    gap_event_advertising_report_get_data_length(event));
+            }
             return true;
         default:
             return false;
@@ -518,10 +535,24 @@ mp_obj_t common_hal_bleio_adapter_start_scan(bleio_adapter_obj_t *self, uint8_t 
 }
 
 void common_hal_bleio_adapter_stop_scan(bleio_adapter_obj_t *self) {
+    // Note: This function may be called from an interrupt context due to
+    // scan_timer_handler on BTstack timer expiration.
+
+    // Is adapter enabled.
     if (self->adapter_state != ADAPTER_STATE_ENABLED) {
         return;
     }
-    // TODO: stop scanning
+    // Is scan in progress?
+    if (self->scan_results == NULL || shared_module_bleio_scanresults_get_done(self->scan_results)) {
+        return;
+    }
+    // Stop scanning.
+    gap_stop_scan();
+    // Stop the scan timer.
+    btstack_run_loop_remove_timer(&scan_timer);
+    // Mark the scan results as done.
+    shared_module_bleio_scanresults_set_done(self->scan_results, true);
+    self->scan_results = NULL;
 }
 
 void common_hal_bleio_adapter_start_advertising(bleio_adapter_obj_t *self,
@@ -552,6 +583,7 @@ void bleio_adapter_reset(bleio_adapter_obj_t *adapter) {
     common_hal_bleio_adapter_stop_scan(adapter);
     common_hal_bleio_adapter_stop_advertising(adapter);
     // Sever all connections.
+    // TODO
     // Block until all connections are closed or timeout.
     adapter->scan_results = NULL;
     // adapter->current_advertising_data = NULL;
