@@ -326,8 +326,6 @@ safe_mode_t port_init(void) {
     // Reset everything into a known state before board_init.
     reset_port();
 
-    serial_early_init();
-
     #ifdef CIRCUITPY_PSRAM_CHIP_SELECT
     setup_psram();
     #endif
