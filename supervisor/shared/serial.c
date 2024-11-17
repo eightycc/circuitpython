@@ -57,11 +57,15 @@ static bool _first_write_done = false;
 bool tud_vendor_connected(void);
 #endif
 
+// True when the serial console has been initialized by serial_early_init. Used
+// to allow only one serial console initialization.
+static bool _serial_console_inited = false;
+
 // Set to true to temporarily discard writes to the console only.
-static bool _serial_console_write_disabled;
+static bool _serial_console_write_disabled = false;
 
 // Set to true to temporarily discard writes to the display terminal only.
-static bool _serial_display_write_disabled;
+static bool _serial_display_write_disabled = false;
 
 #if CIRCUITPY_CONSOLE_UART
 static void console_uart_print_strn(void *env, const char *str, size_t len) {
@@ -137,6 +141,12 @@ MP_WEAK void port_serial_write_substring(const char *text, uint32_t length) {
 }
 
 void serial_early_init(void) {
+    // Allow only one serial console initialization. This way it is possible to plant earlier
+    // calls to serial_early_init for debugging without worrying about multiple initializations.
+    if (_serial_console_inited) {
+        return;
+    }
+
     // Set up console UART, if enabled.
 
     #if CIRCUITPY_CONSOLE_UART
@@ -156,6 +166,7 @@ void serial_early_init(void) {
 
     board_serial_early_init();
     port_serial_early_init();
+    _serial_console_inited = true;
 }
 
 void serial_init(void) {
@@ -347,12 +358,14 @@ uint32_t serial_write_substring(const char *text, uint32_t length) {
     #endif
 
     #if CIRCUITPY_CONSOLE_UART
-    if (!_first_write_done) {
-        mp_hal_delay_ms(50);
-        _first_write_done = true;
+    if (_serial_console_inited) {
+        if (!_first_write_done) {
+            mp_hal_delay_ms(50);
+            _first_write_done = true;
+        }
+        int uart_errcode;
+        length_sent = common_hal_busio_uart_write(&console_uart, (const uint8_t *)text, length, &uart_errcode);
     }
-    int uart_errcode;
-    length_sent = common_hal_busio_uart_write(&console_uart, (const uint8_t *)text, length, &uart_errcode);
     #endif
 
     #if CIRCUITPY_SERIAL_BLE
