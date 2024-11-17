@@ -635,11 +635,11 @@ msgid "BTstack deinit while changing state"
 msgstr ""
 
 #: ports/raspberrypi/common-hal/_bleio/Adapter.c
-msgid "BTstack failed to power off"
+msgid "BTstack failed to power off HCI"
 msgstr ""
 
 #: ports/raspberrypi/common-hal/_bleio/Adapter.c
-msgid "BTstack failed to power on"
+msgid "BTstack failed to power on HCI"
 msgstr ""
 
 #: ports/espressif/common-hal/canio/CAN.c

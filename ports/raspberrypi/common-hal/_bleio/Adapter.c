@@ -69,11 +69,11 @@
 // #include "esp_bt.h"
 // #include "esp_nimble_hci.h"
 
-STATIC const uint16_t BTSTACK_GAP_DEVICE_NAME_HANDLE = 3;
+static const uint16_t BTSTACK_GAP_DEVICE_NAME_HANDLE = 3;
 #define BLE_GAP_SCAN_BUFFER_MAX (31)
 #define BLE_GAP_SCAN_BUFFER_EXTENDED_MAX_SUPPORTED (255)
 
-STATIC bool adapter_event_handler(uint8_t *event, uint16_t event_size, void *context) {
+static bool adapter_event_handler(uint8_t *event, uint16_t event_size, void *context) {
     bleio_adapter_obj_t *self = (bleio_adapter_obj_t *)context;
     uint8_t event_type = hci_event_packet_get_type(event);
     switch (event_type) {
@@ -134,7 +134,7 @@ STATIC bool adapter_event_handler(uint8_t *event, uint16_t event_size, void *con
     }
 }
 
-STATIC void bleio_btstack_deinit(bleio_adapter_obj_t *self) {
+static void bleio_btstack_deinit(bleio_adapter_obj_t *self) {
     switch (self->btstack_state) {
         case BTSTACK_STATE_FIRST_START:
             // On first start the SDK leaves BTstack partially initialized. Advance to OFF state
@@ -166,7 +166,7 @@ STATIC void bleio_btstack_deinit(bleio_adapter_obj_t *self) {
                 RUN_BACKGROUND_TASKS;
             }
             if (self->btstack_state != BTSTACK_STATE_OFF) {
-                mp_raise_bleio_BluetoothError(MP_ERROR_TEXT("BTstack failed to power off"));
+                mp_raise_bleio_BluetoothError(MP_ERROR_TEXT("BTstack failed to power off HCI"));
             }
             // Reset BTstack event passthru.
             bleio_evts_reset();
@@ -184,11 +184,24 @@ STATIC void bleio_btstack_deinit(bleio_adapter_obj_t *self) {
     self->gatts_db = NULL;
 }
 
-STATIC void bleio_btstack_init(bleio_adapter_obj_t *self) {
+static void bleio_btstack_init(bleio_adapter_obj_t *self) {
     // De-init BTstack if it's already initialized.
     bleio_btstack_deinit(self);
 
-    // Initialize BTstack.
+    // Erase both TLV flash banks. This is a debug tool that can wear
+    // out flash, so use with caution.
+    // const btstack_tlv_t * tlv_impl = NULL;
+    // btstack_tlv_flash_bank_t * tlv_context;
+    // btstack_tlv_get_instance(&tlv_impl, &tlv_context);
+    // if (tlv_context) {
+    //    tlv_context->hal_flash_bank_impl->erase(tlv_context->hal_flash_bank_context, 0);
+    //    tlv_context->hal_flash_bank_impl->erase(tlv_context->hal_flash_bank_context, 1);
+    // }
+
+    // Initialize BTstack using SDK. Includes a harmless TLV flash restart.
+    // btstack_cyw43_init(cyw43_arch_async_context());
+
+    // Initialize BTstack in the same fashion as the SDK except do not restart the TLV flash.
     btstack_memory_init();
     btstack_run_loop_init(btstack_run_loop_async_context_get_instance(cyw43_arch_async_context()));
     hci_init(hci_transport_cyw43_instance(), NULL);
@@ -223,7 +236,7 @@ STATIC void bleio_btstack_init(bleio_adapter_obj_t *self) {
         RUN_BACKGROUND_TASKS;
     }
     if (self->btstack_state != BTSTACK_STATE_WORKING) {
-        mp_raise_bleio_BluetoothError(MP_ERROR_TEXT("BTstack failed to power on"));
+        mp_raise_bleio_BluetoothError(MP_ERROR_TEXT("BTstack failed to power on HCI"));
     }
 }
 
@@ -232,7 +245,7 @@ STATIC void bleio_btstack_init(bleio_adapter_obj_t *self) {
 // environment variable.
 char default_ble_name[] = { 'C', 'I', 'R', 'C', 'U', 'I', 'T', 'P', 'Y', 0, 0, 0, 0, 0};
 
-STATIC void bleio_adapter_reset_name(bleio_adapter_obj_t *self) {
+static void bleio_adapter_reset_name(bleio_adapter_obj_t *self) {
     // setup the default name
     bd_addr_t own_addr;
     uint8_t addr_type;
@@ -308,13 +321,13 @@ void common_hal_bleio_adapter_set_enabled(bleio_adapter_obj_t *self, bool enable
     }
 }
 
-STATIC void check_adapter_enabled(bleio_adapter_obj_t *self) {
+static void check_adapter_enabled(bleio_adapter_obj_t *self) {
     if (self->adapter_state != ADAPTER_STATE_ENABLED) {
         mp_raise_bleio_BluetoothError(MP_ERROR_TEXT("Adapter is not enabled"));
     }
 }
 
-STATIC void check_device_address(uint8_t type, const bd_addr_t address) {
+static void check_device_address(uint8_t type, const bd_addr_t address) {
     // Check device address validity according to the Bluetooth Core Specification v5.2,
     // Vol 6, Part B, Section 1.3:
     //   Public - No check needed
@@ -358,7 +371,7 @@ STATIC void check_device_address(uint8_t type, const bd_addr_t address) {
     }
 }
 
-STATIC void check_scanning(bleio_adapter_obj_t *self) {
+static void check_scanning(bleio_adapter_obj_t *self) {
     if (self->scan_results != NULL) {
         if (!shared_module_bleio_scanresults_get_done(self->scan_results)) {
             mp_raise_bleio_BluetoothError(MP_ERROR_TEXT("Scan in progress"));
@@ -367,7 +380,7 @@ STATIC void check_scanning(bleio_adapter_obj_t *self) {
     }
 }
 
-STATIC void check_advertising(bleio_adapter_obj_t *self) {
+static void check_advertising(bleio_adapter_obj_t *self) {
     if (self->current_advertising_data != NULL) {
         if (self->current_advertising_data == self->advertising_data) {
             mp_raise_bleio_BluetoothError(MP_ERROR_TEXT("Advertising in progress"));
@@ -389,7 +402,7 @@ bleio_address_obj_t *common_hal_bleio_adapter_get_address(bleio_adapter_obj_t *s
 }
 
 // Crypto random synchronization callback.
-STATIC void random_addr_ready(void *arg) {
+static void random_addr_ready(void *arg) {
     *(volatile bool *)arg = true;
 }
 
@@ -490,9 +503,9 @@ mp_obj_t common_hal_bleio_adapter_connect(bleio_adapter_obj_t *self, bleio_addre
     return NULL;
 }
 
-STATIC btstack_timer_source_t scan_timer;
+static btstack_timer_source_t scan_timer;
 
-STATIC void scan_timer_handler(btstack_timer_source_t *ts) {
+static void scan_timer_handler(btstack_timer_source_t *ts) {
     UNUSED(ts);
     common_hal_bleio_adapter_stop_scan(&common_hal_bleio_adapter_obj);
 }

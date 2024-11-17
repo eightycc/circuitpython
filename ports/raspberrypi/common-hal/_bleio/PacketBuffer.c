@@ -38,7 +38,7 @@
 // #include "supervisor/shared/tick.h"
 
 // packet event handler
-// STATIC void packet_buffer_client_evt(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size) {
+// static void packet_buffer_client_evt(uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size) {
 //
 // }
 
