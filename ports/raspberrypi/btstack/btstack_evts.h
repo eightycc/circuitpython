@@ -33,8 +33,8 @@ typedef struct bleio_evt_handler_entry {
     void *context;
 } bleio_evt_handler_entry_t;
 
-void bleio_evts_init(void);
-void bleio_evts_reset(void);
+void bleio_evt_init(void);
+void bleio_evt_deinit(void);
 void bleio_evt_remove_heap_handlers(void);
 void bleio_evt_add_event_handler(bleio_evt_handler_t callback, void *context);
 void bleio_evt_add_event_handler_entry(bleio_evt_handler_entry_t *entry, bleio_evt_handler_t callback, void *context);

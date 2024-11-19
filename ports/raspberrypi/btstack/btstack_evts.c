@@ -17,15 +17,29 @@
 #include "py/runtime.h"
 #include "py/gc.h"
 
-// We register a single event handler with BTstack. Registration with BTstack happens once
-// and is invoked by bleio_evts_init().
+// Because BTstack events don't provide a means of passing a user context pointer to
+// event handlers, we use a two handler scheme. The top-level event handler is
+// registered with BTstack. For each BTstack HCI event the top-level handler
+// dispatches CP event handlers in the order they were registered. Once a CP event
+// handler has handled an event it returns true and the top-level handler stops
+// dispatching the event to other CP event handlers.
+//
+// CP event handlers have one of two different lifetimes. Handlers created dynamically
+// on the CP heap live from creation until they are either individually removed by
+// bleio_evt_remove_event_handler() or until bleio_user_reset() invokes
+// bleio_evt_remove_heap_handlers() to remove them all in preparation for a heap
+// reset. Handlers created statically on the CP stack live until they are either
+// removed individually or until bleio_reset() invokes bleio_evt_reset() to remove
+// all CP event handlers in preparation for a full reset of the Bluetooth stack.
+//
+// We register our top-level event handler with BTstack once to begin the lifetime
+// of our registration. The btstack_evt_handler_registered static guards against
+// registration of an already registered handler.
 
 static bool btstack_evt_handler_registered = false;
 static btstack_packet_callback_registration_t btstack_evt_handler_entry;
 
-// Handle an HCI event from BTstack by calling registered CP event handlers. Event handlers
-// are called in the order they were registered until one returns true or the list is
-// exhausted.
+// Handle an HCI event from BTstack by calling registered CP event handlers.
 //  packet_type: HCI packet type
 //  channel: HCI channel
 //  packet: HCI packet
@@ -47,14 +61,13 @@ static void btstack_evt_handler(uint8_t packet_type, uint16_t channel, uint8_t *
 }
 
 // Register our event handler with BTstack.
-// hci_xxx_event_handler() functions guard against double registration and null removal.
 static void register_btstack_evt_handler(void) {
     btstack_evt_handler_entry.callback = &btstack_evt_handler;
     hci_add_event_handler(&btstack_evt_handler_entry);
     btstack_evt_handler_registered = true;
 }
 
-static void remove_btstack_evt_handler(void) {
+static void deregister_btstack_evt_handler(void) {
     if (btstack_evt_handler_registered) {
         // This call is fatal if the handler is not registered.
         hci_remove_event_handler(&btstack_evt_handler_entry);
@@ -62,23 +75,23 @@ static void remove_btstack_evt_handler(void) {
     }
 }
 
-void bleio_evts_init(void) {
-    // Ignore double init (maybe an assert?)
-    if (btstack_evt_handler_registered) {
-        return;
-    }
+void bleio_evt_init(void) {
+    // bleio_evt_init() not serially reusable unless unregistered first.
+    assert(!btstack_evt_handler_registered);
     // Initialize our list of CP event handlers.
     MP_STATE_VM(bleio_evt_handler_entries) = NULL;
     // Register our event handler with BTstack.
     register_btstack_evt_handler();
 }
 
-void bleio_evts_reset(void) {
+void bleio_evt_deinit(void) {
     // Remove our event handler from BTstack.
-    remove_btstack_evt_handler();
+    deregister_btstack_evt_handler();
     // Remove all CP event handlers.
     MP_STATE_VM(bleio_evt_handler_entries) = NULL;
 }
+
+// The following functions apply to CP event handlers:
 
 void bleio_evt_remove_heap_handlers(void) {
     bleio_evt_handler_entry_t *it = MP_STATE_VM(bleio_evt_handler_entries);

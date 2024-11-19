@@ -70,7 +70,7 @@ void bleio_user_reset() {
     // TODO
 
     // Stop any user scanning or advertising.
-    // common_hal_bleio_adapter_stop_scan(&common_hal_bleio_adapter_obj);
+    common_hal_bleio_adapter_stop_scan(&common_hal_bleio_adapter_obj);
     // if (common_hal_bleio_adapter_obj.current_advertising_data != NULL)
     //     common_hal_bleio_adapter_stop_advertising(&common_hal_bleio_adapter_obj);
 

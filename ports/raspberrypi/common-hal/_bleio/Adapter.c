@@ -135,10 +135,9 @@ static void bleio_btstack_deinit(bleio_adapter_obj_t *self) {
             break;
         case BTSTACK_STATE_SLEEPING:
         case BTSTACK_STATE_WORKING:
-        case BTSTACK_STATE_ERROR:
             // Power off HCI and wait until it is off or times out.
             // Although hci_close() also does this step, we shut down the HCI and synchronize with
-            // BTstack here to (1) detect a hung HCI and (2) avoid a crash in bleio_evts_reset()
+            // BTstack here to (1) detect a hung HCI and (2) avoid a crash in bleio_evt_deinit()
             // when it tries to remove the BTstack event handler.
             hci_power_control(HCI_POWER_OFF);
             uint64_t deadline = supervisor_ticks_ms64() + 1000;
@@ -149,7 +148,9 @@ static void bleio_btstack_deinit(bleio_adapter_obj_t *self) {
                 mp_raise_bleio_BluetoothError(MP_ERROR_TEXT("BTstack failed to power off HCI"));
             }
             // Reset BTstack event passthru.
-            bleio_evts_reset();
+            bleio_evt_deinit();
+            break;
+        case BTSTACK_STATE_ERROR:
             break;
     }
 
@@ -202,9 +203,10 @@ static void bleio_btstack_init(bleio_adapter_obj_t *self) {
     sm_init();
 
     // Initialize BTstack event passthru to _bleio.
-    bleio_evts_init();
+    bleio_evt_init();
 
     // Install BTstack adapter-level event handler.
+    // TODO: The adapter object is static.
     bleio_evt_add_event_handler(adapter_event_handler, self);
 
     // Power on HCI, this will trigger the HCI startup sequence.
