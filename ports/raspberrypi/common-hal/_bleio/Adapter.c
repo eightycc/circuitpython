@@ -193,7 +193,7 @@ static void bleio_btstack_init(bleio_adapter_obj_t *self) {
 
     // Create our GATT server database.
     bleio_gatts_db_create(&self->gatts_db);
-    // Add an entry for the adapter's device name.
+    // Add an entry for the adapter's device name. Adapter enable later resets name to default.
     bleio_gatts_db_create_entry(self->gatts_db, BTSTACK_GAP_DEVICE_NAME_HANDLE, 32);
 
     // Initialize l2cap.
@@ -206,13 +206,14 @@ static void bleio_btstack_init(bleio_adapter_obj_t *self) {
     bleio_evt_init();
 
     // Install BTstack adapter-level event handler.
-    // TODO: The adapter object is static.
+    // TODO: The adapter object is static so it needs a static event handler entry.
     bleio_evt_add_event_handler(adapter_event_handler, self);
 
     // Power on HCI, this will trigger the HCI startup sequence.
     hci_power_control(HCI_POWER_ON);
     // Wait for HCI startup to complete. Timeout should not occur, but if it does we'll throw
     // an exception.
+    // TODO: Some sort of config for setting timeout intervals.
     uint64_t deadline = supervisor_ticks_ms64() + 1000;
     while (self->btstack_state != BTSTACK_STATE_WORKING || deadline < supervisor_ticks_ms64()) {
         RUN_BACKGROUND_TASKS;
@@ -228,7 +229,7 @@ static void bleio_btstack_init(bleio_adapter_obj_t *self) {
 char default_ble_name[] = { 'C', 'I', 'R', 'C', 'U', 'I', 'T', 'P', 'Y', 0, 0, 0, 0, 0};
 
 static void bleio_adapter_reset_name(bleio_adapter_obj_t *self) {
-    // setup the default name
+    // Reset adapter's name to its default.
     bd_addr_t own_addr;
     uint8_t addr_type;
     gap_le_get_own_address(&addr_type, own_addr);
