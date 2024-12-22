@@ -64,22 +64,34 @@ static bool _serial_console_write_disabled;
 static bool _serial_display_write_disabled;
 
 #if CIRCUITPY_CONSOLE_UART
-static void console_uart_print_strn(void *env, const char *str, size_t len) {
-    (void)env;
+// Indicates that the serial console uart has been initialized.
+static bool _serial_console_inited = false;
+
+static size_t console_uart_write(const char *str, size_t len) {
     int uart_errcode;
-    common_hal_busio_uart_write(&console_uart, (const uint8_t *)str, len, &uart_errcode);
+    // Ignore writes if console uart is not yet initialized.
+    if (!_serial_console_inited) {
+        return len;
+    }
+    if (!_first_write_done) {
+        mp_hal_delay_ms(50);
+        _first_write_done = true;
+    }
+    size_t length_sent = common_hal_busio_uart_write(&console_uart,
+        (const uint8_t *)str, len, &uart_errcode);
+    return length_sent;
 }
 
-const mp_print_t console_uart_print = {NULL, console_uart_print_strn};
+static void console_uart_write_callback(void *env, const char *str, size_t len) {
+    (void)env;
+    console_uart_write(str, len);
+}
+
+const mp_print_t console_uart_print = {NULL, console_uart_write_callback};
 #endif
 
 int console_uart_printf(const char *fmt, ...) {
     #if CIRCUITPY_CONSOLE_UART
-    // Skip prints that occur before console serial is started. It's better than
-    // crashing.
-    if (common_hal_busio_uart_deinited(&console_uart)) {
-        return 0;
-    }
     va_list ap;
     va_start(ap, fmt);
     int ret = mp_vprintf(&console_uart_print, fmt, ap);
@@ -137,9 +149,14 @@ MP_WEAK void port_serial_write_substring(const char *text, uint32_t length) {
 }
 
 void serial_early_init(void) {
-    // Set up console UART, if enabled.
-
     #if CIRCUITPY_CONSOLE_UART
+    // Ignore duplicate calls to initialize allowing port-specific code to
+    // call this function early.
+    if (_serial_console_inited) {
+        return;
+    }
+
+    // Set up console UART, if enabled.
     console_uart.base.type = &busio_uart_type;
 
     const mcu_pin_obj_t *console_rx = MP_OBJ_TO_PTR(CIRCUITPY_CONSOLE_UART_RX);
@@ -150,12 +167,15 @@ void serial_early_init(void) {
         console_uart_rx_buf, true);
     common_hal_busio_uart_never_reset(&console_uart);
 
+    board_serial_early_init();
+    port_serial_early_init();
+
+    _serial_console_inited = true;
+
     // Do an initial print so that we can confirm the serial output is working.
     console_uart_printf("Serial console setup\r\n");
     #endif
 
-    board_serial_early_init();
-    port_serial_early_init();
 }
 
 void serial_init(void) {
@@ -347,12 +367,7 @@ uint32_t serial_write_substring(const char *text, uint32_t length) {
     #endif
 
     #if CIRCUITPY_CONSOLE_UART
-    if (!_first_write_done) {
-        mp_hal_delay_ms(50);
-        _first_write_done = true;
-    }
-    int uart_errcode;
-    length_sent = common_hal_busio_uart_write(&console_uart, (const uint8_t *)text, length, &uart_errcode);
+    length_sent = console_uart_write(text, length);
     #endif
 
     #if CIRCUITPY_SERIAL_BLE
