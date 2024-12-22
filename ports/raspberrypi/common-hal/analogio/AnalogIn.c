@@ -23,7 +23,9 @@
 // Voltage monitor is special on Pico W, because this pin is shared between the
 // voltage monitor function and the wifi function. Special handling is required
 // to read the analog voltage.
-#if CIRCUITPY_CYW43
+// For boards attaching an RM2 module, pin 29 monitors voltage without any special
+// routing through the CYW43 GPIO pins.
+#if CIRCUITPY_CYW43 && !CIRCUITPY_CYW43_RM2
 #include "bindings/cyw43/__init__.h"
 #define SPECIAL_PIN(pin) (pin->number == 29)
 

@@ -317,10 +317,12 @@ safe_mode_t port_init(void) {
     critical_section_init(&background_queue_lock);
 
     #if CIRCUITPY_CYW43
-    never_reset_pin_number(23);
-    never_reset_pin_number(24);
-    never_reset_pin_number(25);
-    never_reset_pin_number(29);
+    never_reset_pin_number(CYW43_DEFAULT_PIN_WL_REG_ON);
+    // Boards with a CYW43 as well as the RM2 module mulitplex IRQ (WL_HOST_WAKE),
+    // DI (WL_DATA_IN), and DO (WL_DATA_OUT) onto a single pin.
+    never_reset_pin_number(CYW43_DEFAULT_PIN_WL_HOST_WAKE);
+    never_reset_pin_number(CYW43_DEFAULT_PIN_WL_CS);
+    never_reset_pin_number(CYW43_DEFAULT_PIN_WL_CLOCK);
     #endif
 
     // Reset everything into a known state before board_init.
