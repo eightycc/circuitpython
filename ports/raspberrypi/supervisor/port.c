@@ -341,6 +341,12 @@ safe_mode_t port_init(void) {
 
     // Check brownout.
 
+    // Early serial console init for debugging cyw43.
+    // May be done may be done as early as following reset_port. If done
+    // earlier than common_hal_rtc_init, then after a hard reset the serial
+    // console will hang until something is typed.
+    serial_early_init();
+
     #if CIRCUITPY_CYW43
     // A small number of samples of pico w need an additional delay before
     // initializing the cyw43 chip. Delays inside cyw43_arch_init_with_country
