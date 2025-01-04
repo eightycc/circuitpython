@@ -47,4 +47,6 @@ char board_serial_read(void);
 uint32_t board_serial_bytes_available(void);
 void board_serial_write_substring(const char *text, uint32_t length);
 
-int console_uart_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+extern const mp_print_t console_uart_print;
+
+void print_dump_buf(const mp_print_t *printer, const char *prefix, const uint8_t *buf, size_t len);

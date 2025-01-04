@@ -63,23 +63,75 @@ static bool _serial_console_write_disabled;
 // Set to true to temporarily discard writes to the display terminal only.
 static bool _serial_display_write_disabled;
 
+// Indicates that serial console has been early initialized.
+static bool _serial_console_early_inited = false;
+
 #if CIRCUITPY_CONSOLE_UART
-// Indicates that the serial console uart has been initialized.
-static bool _serial_console_inited = false;
+
+// All output to the console uart goes through this function. The str argument is
+// fully formatted by mp_print machinery. The string is "cooked" while it is
+// entered into the log buffer, i.e., '\n' is replaced by '\r\n'.
+static void inner_console_uart_print_strn_callback(void *env, const char *str, size_t len);
+static const mp_print_t inner_console_uart_print_strn = {NULL, inner_console_uart_print_strn_callback};
+static uint32_t console_uart_print_last_time = 0;
+static bool console_uart_print_last_nl = true;
+
+static void inner_console_uart_print_strn_callback(void *env, const char *str, size_t len) {
+    (void)env;
+    int uart_errcode;
+    bool last_cr = false;
+    while (len > 0) {
+        size_t i = 0;
+        if (str[0] == '\n' && !last_cr) {
+            common_hal_busio_uart_write(&console_uart, (const uint8_t *)"\r", 1, &uart_errcode);
+            i = 1;
+        }
+        // Lump all characters on the next line together.
+        while ((last_cr || str[i] != '\n') && i < len) {
+            last_cr = str[i] == '\r';
+            i++;
+        }
+        common_hal_busio_uart_write(&console_uart, (const uint8_t *)str, i, &uart_errcode);
+        str = &str[i];
+        len -= i;
+    }
+}
 
 static size_t console_uart_write(const char *str, size_t len) {
-    int uart_errcode;
     // Ignore writes if console uart is not yet initialized.
-    if (!_serial_console_inited) {
+    if (!_serial_console_early_inited) {
         return len;
     }
+
     if (!_first_write_done) {
         mp_hal_delay_ms(50);
         _first_write_done = true;
     }
-    size_t length_sent = common_hal_busio_uart_write(&console_uart,
-        (const uint8_t *)str, len, &uart_errcode);
-    return length_sent;
+
+    // There may be multiple newlines in the string, split at newlines.
+    int remaining_len = len;
+    while (remaining_len > 0) {
+        // timestamp here
+        if (console_uart_print_last_nl) {
+            uint32_t now = supervisor_ticks_ms32();
+            uint32_t delta = now - console_uart_print_last_time;
+            console_uart_print_last_time = now;
+            mp_printf(&inner_console_uart_print_strn, "%01lu.%04lu(%01lu.%04lu): ", now / 1000, now % 1000, delta / 1000, delta % 1000);
+            console_uart_print_last_nl = false;
+        }
+
+        int print_len = 0;
+        while (print_len < remaining_len) {
+            if (str[print_len++] == '\n') {
+                console_uart_print_last_nl = true;
+                break;
+            }
+        }
+        mp_printf(&inner_console_uart_print_strn, "%.*s", print_len, str);
+        str += print_len;
+        remaining_len -= print_len;
+    }
+    return len;
 }
 
 static void console_uart_write_callback(void *env, const char *str, size_t len) {
@@ -89,18 +141,6 @@ static void console_uart_write_callback(void *env, const char *str, size_t len) 
 
 const mp_print_t console_uart_print = {NULL, console_uart_write_callback};
 #endif
-
-int console_uart_printf(const char *fmt, ...) {
-    #if CIRCUITPY_CONSOLE_UART
-    va_list ap;
-    va_start(ap, fmt);
-    int ret = mp_vprintf(&console_uart_print, fmt, ap);
-    va_end(ap);
-    return ret;
-    #else
-    return 0;
-    #endif
-}
 
 MP_WEAK void board_serial_early_init(void) {
 }
@@ -149,13 +189,13 @@ MP_WEAK void port_serial_write_substring(const char *text, uint32_t length) {
 }
 
 void serial_early_init(void) {
-    #if CIRCUITPY_CONSOLE_UART
     // Ignore duplicate calls to initialize allowing port-specific code to
     // call this function early.
-    if (_serial_console_inited) {
+    if (_serial_console_early_inited) {
         return;
     }
 
+    #if CIRCUITPY_CONSOLE_UART
     // Set up console UART, if enabled.
     console_uart.base.type = &busio_uart_type;
 
@@ -167,15 +207,15 @@ void serial_early_init(void) {
         console_uart_rx_buf, true);
     common_hal_busio_uart_never_reset(&console_uart);
 
+    #endif
+
     board_serial_early_init();
     port_serial_early_init();
 
-    _serial_console_inited = true;
+    _serial_console_early_inited = true;
 
     // Do an initial print so that we can confirm the serial output is working.
-    console_uart_printf("Serial console setup\r\n");
-    #endif
-
+    CIRCUITPY_CONSOLE_UART_PRINTF("Serial console setup\n");
 }
 
 void serial_init(void) {
@@ -423,4 +463,62 @@ bool serial_display_write_disable(bool disabled) {
     bool now = _serial_display_write_disabled;
     _serial_display_write_disabled = disabled;
     return now;
+}
+
+// Print a buffer in hex and ascii format.
+void print_dump_buf(const mp_print_t *printer, const char *prefix, const uint8_t *buf, size_t len) {
+    size_t i;
+    for (i = 0; i < len; ++i) {
+        // print hex digit
+        if (i % 32 == 0) {
+            mp_printf(printer, "%s0x%04x:", prefix, i);
+        }
+        if (i % 32 == 16) {
+            mp_printf(printer, " : ");
+        } else if (i % 4 == 0) {
+            mp_printf(printer, " ");
+        }
+        mp_printf(printer, "%02x", buf[i]);
+        // print ascii chars for this line
+        if (i % 32 == 31) {
+            size_t k = i - 31;
+            mp_printf(printer, " : ");
+            for (size_t j = 0; j < 32; ++j) {
+                if (j == 16) {
+                    mp_printf(printer, " ");
+                }
+                if (buf[k + j] >= 32 && buf[k + j] < 127) {
+                    mp_printf(printer, "%c", buf[k + j]);
+                } else {
+                    mp_printf(printer, ".");
+                }
+            }
+            mp_printf(printer, "\n");
+        }
+    }
+    if (i % 32 != 0) {
+        // for lines that don't fill a full 32 bytes, pad with spaces
+        // and print the ascii chars for the line
+        i -= i % 32;
+        for (size_t j = len % 32; j < 32; ++j) {
+            if (j % 32 == 16) {
+                mp_printf(printer, "   ");
+            } else if (j % 4 == 0) {
+                mp_printf(printer, " ");
+            }
+            mp_printf(printer, "  ");
+        }
+        mp_printf(printer, " : ");
+        for (size_t j = 0; j < len % 32; ++j) {
+            if (j == 16) {
+                mp_printf(printer, " ");
+            }
+            if (buf[i + j] >= 32 && buf[i + j] < 127) {
+                mp_printf(printer, "%c", buf[i + j]);
+            } else {
+                mp_printf(printer, ".");
+            }
+        }
+        mp_printf(printer, "\n");
+    }
 }
