@@ -68,17 +68,20 @@ static bool _serial_console_early_inited = false;
 
 #if CIRCUITPY_CONSOLE_UART
 
-// All output to the console uart goes through this function. The str argument is
-// fully formatted by mp_print machinery. The string is "cooked" while it is
-// entered into the log buffer, i.e., '\n' is replaced by '\r\n'.
+// All output to the console uart goes through this function. The str argument has been
+// formatted by mp_print machinery.
 static void inner_console_uart_print_strn_callback(void *env, const char *str, size_t len);
 static const mp_print_t inner_console_uart_print_strn = {NULL, inner_console_uart_print_strn_callback};
+#if CIRCUITPY_CONSOLE_UART_TIMESTAMP
 static uint32_t console_uart_print_last_time = 0;
 static bool console_uart_print_last_nl = true;
+#endif
 
 static void inner_console_uart_print_strn_callback(void *env, const char *str, size_t len) {
     (void)env;
     int uart_errcode;
+    // The string is "cooked" as it is sent to the console uart, i.e., '\n' is replaced by
+    // '\r\n'. Existing '\r\n' sequences are sent unchanged.
     bool last_cr = false;
     while (len > 0) {
         size_t i = 0;
@@ -111,7 +114,7 @@ static size_t console_uart_write(const char *str, size_t len) {
     // There may be multiple newlines in the string, split at newlines.
     int remaining_len = len;
     while (remaining_len > 0) {
-        // timestamp here
+        #if CIRCUITPY_CONSOLE_UART_TIMESTAMP
         if (console_uart_print_last_nl) {
             uint32_t now = supervisor_ticks_ms32();
             uint32_t delta = now - console_uart_print_last_time;
@@ -119,15 +122,17 @@ static size_t console_uart_write(const char *str, size_t len) {
             mp_printf(&inner_console_uart_print_strn, "%01lu.%04lu(%01lu.%04lu): ", now / 1000, now % 1000, delta / 1000, delta % 1000);
             console_uart_print_last_nl = false;
         }
-
+        #endif
         int print_len = 0;
         while (print_len < remaining_len) {
             if (str[print_len++] == '\n') {
+                #if CIRCUITPY_CONSOLE_UART_TIMESTAMP
                 console_uart_print_last_nl = true;
+                #endif
                 break;
             }
         }
-        mp_printf(&inner_console_uart_print_strn, "%.*s", print_len, str);
+        inner_console_uart_print_strn_callback(NULL, str, print_len);
         str += print_len;
         remaining_len -= print_len;
     }
@@ -465,7 +470,7 @@ bool serial_display_write_disable(bool disabled) {
     return now;
 }
 
-// Print a buffer in hex and ascii format.
+// A general purpose hex/ascii dump function for arbitrary area of memory.
 void print_dump_buf(const mp_print_t *printer, const char *prefix, const uint8_t *buf, size_t len) {
     size_t i;
     for (i = 0; i < len; ++i) {
@@ -497,8 +502,7 @@ void print_dump_buf(const mp_print_t *printer, const char *prefix, const uint8_t
         }
     }
     if (i % 32 != 0) {
-        // for lines that don't fill a full 32 bytes, pad with spaces
-        // and print the ascii chars for the line
+        // For a final line of less than 32 bytes, pad with spaces
         i -= i % 32;
         for (size_t j = len % 32; j < 32; ++j) {
             if (j % 32 == 16) {
@@ -508,6 +512,7 @@ void print_dump_buf(const mp_print_t *printer, const char *prefix, const uint8_t
             }
             mp_printf(printer, "  ");
         }
+        // Print ascii chars for the last line fragment
         mp_printf(printer, " : ");
         for (size_t j = 0; j < len % 32; ++j) {
             if (j == 16) {

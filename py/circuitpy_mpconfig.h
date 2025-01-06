@@ -334,6 +334,9 @@ typedef long mp_off_t;
 #if !defined(CIRCUITPY_CONSOLE_UART_DUMPBUF)
 #define CIRCUITPY_CONSOLE_UART_DUMPBUF(pfx, buf, len) print_dump_buf(&console_uart_print, pfx, (const uint8_t *)buf, len)
 #endif
+#if !defined(CIRCUITPY_CONSOLE_UART_TIMESTAMP)
+#define CIRCUITPY_CONSOLE_UART_TIMESTAMP (0)
+#endif
 #endif
 #else
 #define CIRCUITPY_CONSOLE_UART (0)
