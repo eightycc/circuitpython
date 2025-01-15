@@ -10,6 +10,7 @@ SRC_SUPERVISOR = \
 	supervisor/shared/lock.c \
 	supervisor/shared/micropython.c \
 	supervisor/shared/port.c \
+	supervisor/shared/ramlogging.c \
 	supervisor/shared/reload.c \
 	supervisor/shared/safe_mode.c \
 	supervisor/shared/serial.c \

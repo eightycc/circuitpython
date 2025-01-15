@@ -30,6 +30,7 @@
 #include "supervisor/cpu.h"
 #include "supervisor/filesystem.h"
 #include "supervisor/port.h"
+#include "supervisor/shared/ramlogging.h"
 #include "supervisor/shared/reload.h"
 #include "supervisor/shared/safe_mode.h"
 #include "supervisor/shared/serial.h"
@@ -994,6 +995,24 @@ int __attribute__((used)) main(void) {
     // Start the debug serial
     serial_early_init();
     mp_hal_stdout_tx_str(line_clear);
+
+    #if CIRCUITPY_RAM_LOG
+    // Attempt RAM log recovery. Done before any other initializations disturb the heap.
+    // If the RAM log is not recovered, optionally allocate a new one.
+    if (CIRCUITPY_RAM_LOG_RECOVER && ram_log_recover()) {
+        CIRCUITPY_CONSOLE_UART_PRINTF("Recovered RAM log.\n");
+    } else {
+        if (CIRCUITPY_RAM_LOG_AUTOALLOCATE) {
+            if (!ram_log_init(CIRCUITPY_RAM_LOG_AUTOSIZE)) {
+                CIRCUITPY_CONSOLE_UART_PRINTF("Failed to allocate RAM log.\n");
+            } else if (CIRCUITPY_RAM_LOG_AUTOSTART) {
+                ram_log_enable(true);
+                CIRCUITPY_CONSOLE_UART_PRINTF("RAM log started at init.\n");
+                CIRCUITPY_RAM_LOG_PRINTF("RAM log started at init.\n");
+            }
+        }
+    }
+    #endif
 
     // Wait briefly to give a reset window where we'll enter safe mode after the reset.
     if (get_safe_mode() == SAFE_MODE_NONE) {
