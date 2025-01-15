@@ -331,8 +331,8 @@ typedef long mp_off_t;
 #if !defined(CIRCUITPY_CONSOLE_UART_PRINTF)
 #define CIRCUITPY_CONSOLE_UART_PRINTF(...) mp_printf(&console_uart_print, __VA_ARGS__)
 #endif
-#if !defined(CIRCUITPY_CONSOLE_UART_DUMPBUF)
-#define CIRCUITPY_CONSOLE_UART_DUMPBUF(pfx, buf, len) print_dump_buf(&console_uart_print, pfx, (const uint8_t *)buf, len)
+#if !defined(CIRCUITPY_CONSOLE_UART_HEXDUMP)
+#define CIRCUITPY_CONSOLE_UART_HEXDUMP(pfx, buf, len) print_hexdump(&console_uart_print, pfx, (const uint8_t *)buf, len)
 #endif
 #if !defined(CIRCUITPY_CONSOLE_UART_TIMESTAMP)
 #define CIRCUITPY_CONSOLE_UART_TIMESTAMP (0)
@@ -341,23 +341,30 @@ typedef long mp_off_t;
 #else
 #define CIRCUITPY_CONSOLE_UART (0)
 #define CIRCUITPY_CONSOLE_UART_PRINTF(...) (void)0
-#define CIRCUITPY_CONSOLE_UART_DUMPBUF(...) (void)0
+#define CIRCUITPY_CONSOLE_UART_HEXDUMP(...) (void)0
 #endif
 
-#if !defined(CIRCUITPY_RAM_LOG)
-#define CIRCUITPY_RAM_LOG (0)
-#define CIRCUITPY_RAM_LOG_PRINTF(...) (void)0
+#ifndef CIRCUITPY_RAM_LOG
+    #define CIRCUITPY_RAM_LOG (0)
+    #define CIRCUITPY_RAM_LOG_PRINTF(...) (void)0
+    #define CIRCUITPY_RAM_LOG_HEXDUMP(...) (void)0
 #else
-#if defined(CIRCUITPY_RAM_LOG_AUTOALLOCATE) && !defined(CIRCUITPY_RAM_LOG_AUTOSIZE)
-#error "CIRCUITPY_RAM_LOG_AUTOALLOCATE requires CIRCUITPY_RAM_LOG_AUTOSIZE"
-#else
-#define CIRCUITPY_RAM_LOG_AUTOALLOCATE (0)
-#endif
-#if !defined(CIRCUITPY_RAM_LOG_PRINTF)
-#define CIRCUITPY_RAM_LOG_PRINTF(...) mp_printf(&ram_log_print, __VA_ARGS__)
-#endif
-if !defined(CIRCUITPY_RAM_LOG_RECOVER)
-#define CIRCUITPY_RAM_LOG_RECOVER (0)
+    #if defined(CIRCUITPY_RAM_LOG_AUTOALLOCATE) && !defined(CIRCUITPY_RAM_LOG_AUTOSIZE)
+        #error "CIRCUITPY_RAM_LOG_AUTOALLOCATE requires CIRCUITPY_RAM_LOG_AUTOSIZE"
+    #else
+        #ifndef CIRCUITPY_RAM_LOG_AUTOALLOCATE
+            #define CIRCUITPY_RAM_LOG_AUTOALLOCATE (0)
+        #endif
+        #ifndef CIRCUITPY_RAM_LOG_PRINTF
+            #define CIRCUITPY_RAM_LOG_PRINTF(...) ram_log_printf(__VA_ARGS__)
+        #endif
+        #ifndef CIRCUITPY_RAM_LOG_HEXDUMP
+            #define CIRCUITPY_RAM_LOG_HEXDUMP(pfx, buf, len) ram_log_print_hexdump(pfx, (const uint8_t *)buf, len)
+        #endif
+        #ifndef CIRCUITPY_RAM_LOG_RECOVER
+            #define CIRCUITPY_RAM_LOG_RECOVER (0)
+        #endif
+    #endif
 #endif
 
 // These CIRCUITPY_xxx values should all be defined in the *.mk files as being on or off.
