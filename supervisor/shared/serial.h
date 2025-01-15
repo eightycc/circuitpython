@@ -49,4 +49,4 @@ void board_serial_write_substring(const char *text, uint32_t length);
 
 extern const mp_print_t console_uart_print;
 
-void print_dump_buf(const mp_print_t *printer, const char *prefix, const uint8_t *buf, size_t len);
+void print_hexdump(const mp_print_t *printer, const char *prefix, const uint8_t *buf, size_t len);

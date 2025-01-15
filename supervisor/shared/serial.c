@@ -13,6 +13,7 @@
 #include "supervisor/shared/cpu.h"
 #include "supervisor/shared/display.h"
 #include "shared-bindings/terminalio/Terminal.h"
+#include "supervisor/shared/ramlogging.h"
 #include "supervisor/shared/serial.h"
 #include "shared-bindings/microcontroller/Pin.h"
 
@@ -68,20 +69,12 @@ static bool _serial_console_early_inited = false;
 
 #if CIRCUITPY_CONSOLE_UART
 
-// All output to the console uart goes through this function. The str argument has been
-// formatted by mp_print machinery.
-static void inner_console_uart_print_strn_callback(void *env, const char *str, size_t len);
-static const mp_print_t inner_console_uart_print_strn = {NULL, inner_console_uart_print_strn_callback};
-#if CIRCUITPY_CONSOLE_UART_TIMESTAMP
-static uint32_t console_uart_print_last_time = 0;
-static bool console_uart_print_last_nl = true;
-#endif
-
-static void inner_console_uart_print_strn_callback(void *env, const char *str, size_t len) {
+// All output to the console uart comes through this inner write function. It ensures that all
+// lines are terminated with a "cooked" '\r\n' sequence. Lines that are already cooked are sent
+// on unchanged.
+static void inner_console_uart_write_cb(void *env, const char *str, size_t len) {
     (void)env;
     int uart_errcode;
-    // The string is "cooked" as it is sent to the console uart, i.e., '\n' is replaced by
-    // '\r\n'. Existing '\r\n' sequences are sent unchanged.
     bool last_cr = false;
     while (len > 0) {
         size_t i = 0;
@@ -100,6 +93,21 @@ static void inner_console_uart_print_strn_callback(void *env, const char *str, s
     }
 }
 
+#if CIRCUITPY_CONSOLE_UART_TIMESTAMP
+static const mp_print_t inner_console_uart_write = {NULL, inner_console_uart_write_cb};
+static uint32_t console_uart_write_prev_time = 0;
+static bool console_uart_write_prev_nl = true;
+
+static inline void console_uart_write_timestamp(void) {
+    uint32_t now = supervisor_ticks_ms32();
+    uint32_t delta = now - console_uart_write_prev_time;
+    console_uart_write_prev_time = now;
+    mp_printf(&inner_console_uart_write,
+        "%01lu.%03lu(%01lu.%03lu): ",
+        now / 1000, now % 1000, delta / 1000, delta % 1000);
+}
+#endif
+
 static size_t console_uart_write(const char *str, size_t len) {
     // Ignore writes if console uart is not yet initialized.
     if (!_serial_console_early_inited) {
@@ -115,36 +123,33 @@ static size_t console_uart_write(const char *str, size_t len) {
     int remaining_len = len;
     while (remaining_len > 0) {
         #if CIRCUITPY_CONSOLE_UART_TIMESTAMP
-        if (console_uart_print_last_nl) {
-            uint32_t now = supervisor_ticks_ms32();
-            uint32_t delta = now - console_uart_print_last_time;
-            console_uart_print_last_time = now;
-            mp_printf(&inner_console_uart_print_strn, "%01lu.%04lu(%01lu.%04lu): ", now / 1000, now % 1000, delta / 1000, delta % 1000);
-            console_uart_print_last_nl = false;
+        if (console_uart_write_prev_nl) {
+            console_uart_write_timestamp();
+            console_uart_write_prev_nl = false;
         }
         #endif
         int print_len = 0;
         while (print_len < remaining_len) {
             if (str[print_len++] == '\n') {
                 #if CIRCUITPY_CONSOLE_UART_TIMESTAMP
-                console_uart_print_last_nl = true;
+                console_uart_write_prev_nl = true;
                 #endif
                 break;
             }
         }
-        inner_console_uart_print_strn_callback(NULL, str, print_len);
+        inner_console_uart_write_cb(NULL, str, print_len);
         str += print_len;
         remaining_len -= print_len;
     }
     return len;
 }
 
-static void console_uart_write_callback(void *env, const char *str, size_t len) {
+static void console_uart_write_cb(void *env, const char *str, size_t len) {
     (void)env;
     console_uart_write(str, len);
 }
 
-const mp_print_t console_uart_print = {NULL, console_uart_write_callback};
+const mp_print_t console_uart_print = {NULL, console_uart_write_cb};
 #endif
 
 MP_WEAK void board_serial_early_init(void) {
@@ -415,6 +420,10 @@ uint32_t serial_write_substring(const char *text, uint32_t length) {
     length_sent = console_uart_write(text, length);
     #endif
 
+    #if CIRCUITPY_RAM_LOG
+    length_sent = ram_log_printf("%.*s", (unsigned int)length, text);
+    #endif
+
     #if CIRCUITPY_SERIAL_BLE
     ble_serial_write(text, length);
     #endif
@@ -471,7 +480,7 @@ bool serial_display_write_disable(bool disabled) {
 }
 
 // A general purpose hex/ascii dump function for arbitrary area of memory.
-void print_dump_buf(const mp_print_t *printer, const char *prefix, const uint8_t *buf, size_t len) {
+void print_hexdump(const mp_print_t *printer, const char *prefix, const uint8_t *buf, size_t len) {
     size_t i;
     for (i = 0; i < len; ++i) {
         // print hex digit
