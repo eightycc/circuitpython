@@ -16,3 +16,14 @@
 #define CIRCUITPY_BOARD_I2C_PIN     {{.scl = &pin_GPIO5, .sda = &pin_GPIO4}}
 
 #define CIRCUITPY_PSRAM_CHIP_SELECT (&pin_GPIO47)
+
+// Uncomment to enable REPL and debug output over UART0 (TX/RX) pins
+#define CIRCUITPY_CONSOLE_UART_RX (&pin_GPIO1)
+#define CIRCUITPY_CONSOLE_UART_TX (&pin_GPIO0)
+#define CIRCUITPY_CONSOLE_UART_TIMESTAMP (1)
+
+// RAM logging configuration
+#define CIRCUITPY_RAMLOG_AUTOSIZE (1024 * 1024)
+#define CIRCUITPY_RAMLOG_AUTOALLOCATE (1)
+#define CIRCUITPY_RAMLOG_RECOVER (1)
+#define CIRCUITPY_RAMLOG_AUTOSTART (1)

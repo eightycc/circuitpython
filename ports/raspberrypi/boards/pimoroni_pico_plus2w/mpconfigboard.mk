@@ -35,3 +35,5 @@ CFLAGS += \
 	-DCYW43_PIO_CLOCK_DIV_FRAC=0
 # Must be accompanied by a linker script change
 CFLAGS += -DCIRCUITPY_FIRMWARE_SIZE='(1536 * 1024)'
+
+CIRCUITPY_RAMLOG = 1
