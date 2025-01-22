@@ -1,0 +1,9 @@
+// This file is part of the CircuitPython project: https://circuitpython.org
+//
+// SPDX-FileCopyrightText: Copyright (c) 2025 Bob Abeles
+//
+// SPDX-License-Identifier: MIT
+
+#pragma once
+
+#include "py/obj.h"

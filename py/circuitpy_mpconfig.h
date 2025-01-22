@@ -344,6 +344,30 @@ typedef long mp_off_t;
 #define CIRCUITPY_CONSOLE_UART_HEXDUMP(...) (void)0
 #endif
 
+#ifndef CIRCUITPY_RAMLOG
+    #define CIRCUITPY_RAMLOG (0)
+    #define CIRCUITPY_RAMLOG_PRINTF(...) (void)0
+    #define CIRCUITPY_RAMLOG_HEXDUMP(...) (void)0
+#else
+    #if defined(CIRCUITPY_RAMLOG_AUTOALLOCATE) && !defined(CIRCUITPY_RAMLOG_AUTOSIZE)
+        #error "CIRCUITPY_RAMLOG_AUTOALLOCATE requires CIRCUITPY_RAMLOG_AUTOSIZE"
+    #else
+        #ifndef CIRCUITPY_RAMLOG_AUTOALLOCATE
+            #define CIRCUITPY_RAMLOG_AUTOALLOCATE (0)
+        #endif
+        #ifndef CIRCUITPY_RAMLOG_PRINTF
+            #define CIRCUITPY_RAMLOG_PRINTF(...) ramlog_printf(__VA_ARGS__)
+        #endif
+        #ifndef CIRCUITPY_RAMLOG_HEXDUMP
+            #define CIRCUITPY_RAMLOG_HEXDUMP(pfx, buf, len) ramlog_print_hexdump(pfx, (const uint8_t *)buf, len)
+        #endif
+        #ifndef CIRCUITPY_RAMLOG_RECOVER
+            #define CIRCUITPY_RAMLOG_RECOVER (0)
+        #endif
+    #endif
+#endif
+
+
 // These CIRCUITPY_xxx values should all be defined in the *.mk files as being on or off.
 // So if any are not defined in *.mk, they'll throw an error here.
 
