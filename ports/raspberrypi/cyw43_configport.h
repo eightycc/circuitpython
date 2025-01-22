@@ -23,6 +23,14 @@
 #define CYW43_EVENT_POLL_HOOK
 #endif
 
+#include <stdio.h>
+#include "supervisor/shared/serial.h"
+#include "shared-module/ramlog/ramlog.h"
+#define CYW43_PRINTF(...)               CIRCUITPY_RAMLOG_PRINTF(__VA_ARGS__)
+#define CYW43_VERBOSE_DEBUG             (1)
+#define CYW43_VDEBUG(...)               CYW43_PRINTF(__VA_ARGS__)
+#define CYW43_HEXDUMP(prefix, buf, len) CIRCUITPY_RAMLOG_HEXDUMP(prefix, buf, len)
+
 void cyw43_post_poll_hook(void);
 extern volatile int cyw43_has_pending;
 
