@@ -86,6 +86,10 @@
 #include "shared-module/memorymonitor/__init__.h"
 #endif
 
+#if CIRCUITPY_RAMLOG
+#include "shared-module/ramlog/ramlog.h"
+#endif
+
 #if CIRCUITPY_SOCKETPOOL
 #include "shared-bindings/socketpool/__init__.h"
 #endif
@@ -1007,6 +1011,24 @@ int __attribute__((used)) main(void) {
     // Start the debug serial
     serial_early_init();
     mp_hal_stdout_tx_str(line_clear);
+
+    #if CIRCUITPY_RAMLOG
+    // Attempt RAM log recovery. Done before any other initializations disturb the heap.
+    // If the RAM log is not recovered, optionally allocate a new one.
+    if (CIRCUITPY_RAMLOG_RECOVER && ramlog_recover()) {
+        CIRCUITPY_CONSOLE_UART_PRINTF("Recovered RAM log.\n");
+    } else {
+        if (CIRCUITPY_RAMLOG_AUTOALLOCATE) {
+            if (!ramlog_init(CIRCUITPY_RAMLOG_AUTOSIZE)) {
+                CIRCUITPY_CONSOLE_UART_PRINTF("Failed to allocate RAM log.\n");
+            } else if (CIRCUITPY_RAMLOG_AUTOSTART) {
+                ramlog_enable(true);
+                CIRCUITPY_CONSOLE_UART_PRINTF("RAM log started at init.\n");
+                CIRCUITPY_RAMLOG_PRINTF("RAM log started at init.\n");
+            }
+        }
+    }
+    #endif
 
     // Wait briefly to give a reset window where we'll enter safe mode after the reset.
     if (get_safe_mode() == SAFE_MODE_NONE) {

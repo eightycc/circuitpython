@@ -336,6 +336,9 @@ endif
 ifeq ($(CIRCUITPY_RAINBOWIO),1)
 SRC_PATTERNS += rainbowio/%
 endif
+ifeq ($(CIRCUITPY_RAMLOG),1)
+SRC_PATTERNS += ramlog/%
+endif
 ifeq ($(CIRCUITPY_RANDOM),1)
 SRC_PATTERNS += random/%
 endif
@@ -713,6 +716,8 @@ SRC_SHARED_MODULE_ALL = \
 	qrio/__init__.c \
 	qrio/QRDecoder.c \
 	rainbowio/__init__.c \
+	ramlog/__init__.c \
+	ramlog/ramlog.c \
 	random/__init__.c \
 	rgbmatrix/RGBMatrix.c \
 	rgbmatrix/__init__.c \
