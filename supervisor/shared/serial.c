@@ -9,13 +9,16 @@
 
 #include "py/mpconfig.h"
 #include "py/mphal.h"
-#include "py/mpprint.h"
 
 #include "supervisor/shared/cpu.h"
 #include "supervisor/shared/display.h"
 #include "shared-bindings/terminalio/Terminal.h"
 #include "supervisor/shared/serial.h"
 #include "shared-bindings/microcontroller/Pin.h"
+
+#if CIRCUITPY_RAMLOG
+#include "shared-module/ramlog/ramlog.h"
+#endif
 
 #if CIRCUITPY_SERIAL_BLE
 #include "supervisor/shared/bluetooth/serial.h"
@@ -403,6 +406,10 @@ uint32_t serial_write_substring(const char *text, uint32_t length) {
     if (!_serial_display_write_disabled) {
         length_sent = common_hal_terminalio_terminal_write(&supervisor_terminal, (const uint8_t *)text, length, &errcode);
     }
+    #endif
+
+    #if CIRCUITPY_RAMLOG
+    length_sent = ramlog_printf("%.*s", (unsigned int)length, text);
     #endif
 
     if (_serial_console_write_disabled) {
