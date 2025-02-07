@@ -99,6 +99,13 @@ void ramlog_enable(bool enable) {
     }
     mp_uint_t state_save = MICROPY_BEGIN_ATOMIC_SECTION();
     assert(_ramlog->magic == RAM_LOG_MAGIC);
+    if (enable && !_ramlog->logging_enabled) {
+        if (_ramlog->wrapped && !_ramlog->wrap_enabled) {
+            // enabling with logging disabled and wrapped and !wrap_enabled
+            _ramlog->wrapped = false;
+            _ramlog->next_idx = 0;
+        }
+    }
     _ramlog->logging_enabled = enable;
     MICROPY_END_ATOMIC_SECTION(state_save);
 }
