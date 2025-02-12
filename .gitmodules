@@ -311,8 +311,8 @@
 	branch = main
 [submodule "ports/raspberrypi/lib/lwip"]
 	path = ports/raspberrypi/lib/lwip
-	url = https://github.com/adafruit/lwip.git
-	branch = circuitpython8
+	url = https://github.com/eightycc/lwip.git
+	branch = circuitpython9
 [submodule "lib/mbedtls"]
 	path = lib/mbedtls
 	url = https://github.com/ARMmbed/mbedtls.git

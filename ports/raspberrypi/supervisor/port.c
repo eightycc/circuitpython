@@ -56,6 +56,7 @@
 
 #include "tusb.h"
 #include <cmsis_compiler.h>
+#include "lib/tlsf/tlsf.h"
 
 critical_section_t background_queue_lock;
 
@@ -83,19 +84,17 @@ extern uint32_t _ld_itcm_destination;
 extern uint32_t _ld_itcm_size;
 extern uint32_t _ld_itcm_flash_copy;
 
-#ifdef CIRCUITPY_PSRAM_CHIP_SELECT
+static tlsf_t _heap = NULL;
+static pool_t _ram_pool = NULL;
+static pool_t _psram_pool = NULL;
+static size_t _psram_size = 0;
 
-#include "lib/tlsf/tlsf.h"
+#ifdef CIRCUITPY_PSRAM_CHIP_SELECT
 
 #include "src/rp2350/hardware_regs/include/hardware/regs/qmi.h"
 #include "src/rp2350/hardware_regs/include/hardware/regs/xip.h"
 #include "src/rp2350/hardware_structs/include/hardware/structs/qmi.h"
 #include "src/rp2350/hardware_structs/include/hardware/structs/xip_ctrl.h"
-
-static tlsf_t _heap = NULL;
-static pool_t _ram_pool = NULL;
-static pool_t _psram_pool = NULL;
-static size_t _psram_size = 0;
 
 static void __no_inline_not_in_flash_func(setup_psram)(void) {
     gpio_set_function(CIRCUITPY_PSRAM_CHIP_SELECT->number, GPIO_FUNC_XIP_CS1);
@@ -236,8 +235,9 @@ static void __no_inline_not_in_flash_func(setup_psram)(void) {
         return;
     }
 }
+#endif
 
-void port_heap_init(void) {
+static void _port_heap_init(void) {
     uint32_t *heap_bottom = port_heap_get_bottom();
     uint32_t *heap_top = port_heap_get_top();
     size_t size = (heap_top - heap_bottom) * sizeof(uint32_t);
@@ -246,6 +246,10 @@ void port_heap_init(void) {
     if (_psram_size > 0) {
         _psram_pool = tlsf_add_pool(_heap, (void *)0x11000000, _psram_size);
     }
+}
+
+void port_heap_init(void) {
+    // We call _port_heap_init from port_init to initialize the heap early.
 }
 
 void *port_malloc(size_t size, bool dma_capable) {
@@ -278,7 +282,6 @@ size_t port_heap_get_largest_free_size(void) {
     // IDF does this. Not sure why.
     return tlsf_fit_size(_heap, max_size);
 }
-#endif
 
 safe_mode_t port_init(void) {
     _binary_info();
@@ -344,6 +347,9 @@ safe_mode_t port_init(void) {
     setup_psram();
     #endif
 
+    // Initialize heap early to allow for early allocation.
+    _port_heap_init();
+
     // Check brownout.
 
     #if CIRCUITPY_CYW43
@@ -352,6 +358,7 @@ safe_mode_t port_init(void) {
     // are intended to meet the power on timing requirements, but apparently
     // are inadequate. We'll back off this long delay based on future testing.
     mp_hal_delay_ms(1000);
+
     // Change this as a placeholder as to how to init with country code.
     // Default country code is CYW43_COUNTRY_WORLDWIDE)
     if (cyw43_arch_init_with_country(PICO_CYW43_ARCH_DEFAULT_COUNTRY_CODE)) {
