@@ -7,7 +7,6 @@
 #pragma once
 
 #include <stddef.h>
-#include <stdbool.h>
 
 void *lwip_heap_malloc(size_t size);
 void lwip_heap_free(void *ptr);
