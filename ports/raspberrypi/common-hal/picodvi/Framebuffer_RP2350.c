@@ -223,6 +223,9 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
         mp_raise_ValueError_varg(MP_ERROR_TEXT("Invalid %q and %q"), MP_QSTR_width, MP_QSTR_height);
     }
 
+    self->dma_command_channel = -1;
+    self->dma_pixel_channel = -1;
+
     if (width % 160 == 0) {
         self->output_width = 640;
     } else {
@@ -268,10 +271,7 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     // streaming support.
     self->framebuffer = (uint32_t *)port_malloc(framebuffer_size * sizeof(uint32_t), true);
     if (self->framebuffer == NULL || ((size_t)self->framebuffer & 0xf0000000) == 0x10000000) {
-        if (self->framebuffer != NULL) {
-            port_free(self->framebuffer);
-            self->framebuffer = NULL;
-        }
+        common_hal_picodvi_framebuffer_deinit(self);
         m_malloc_fail(framebuffer_size * sizeof(uint32_t));
         return;
     }
@@ -293,12 +293,7 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     }
     self->dma_commands = (uint32_t *)port_malloc(self->dma_commands_len * sizeof(uint32_t), true);
     if (self->dma_commands == NULL || ((size_t)self->framebuffer & 0xf0000000) == 0x10000000) {
-        if (self->dma_commands != NULL) {
-            port_free(self->dma_commands);
-            self->dma_commands = NULL;
-        }
-        port_free(self->framebuffer);
-        self->framebuffer = NULL;
+        common_hal_picodvi_framebuffer_deinit(self);
         m_malloc_fail(self->dma_commands_len * sizeof(uint32_t));
         return;
     }
@@ -313,17 +308,7 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     self->dma_pixel_channel = dma_claim_unused_channel(false);
     self->dma_command_channel = dma_claim_unused_channel(false);
     if (self->dma_pixel_channel < 0 || self->dma_command_channel < 0) {
-        // If we're short of DMA channels, release any previously allocated resources.
-        if (self->dma_pixel_channel >= 0) {
-            dma_channel_unclaim(self->dma_pixel_channel);
-        }
-        if (self->dma_command_channel >= 0) {
-            dma_channel_unclaim(self->dma_command_channel);
-        }
-        port_free(self->framebuffer);
-        self->framebuffer = NULL;
-        port_free(self->dma_commands);
-        self->dma_commands = NULL;
+        common_hal_picodvi_framebuffer_deinit(self);
         mp_raise_RuntimeError(MP_ERROR_TEXT("Internal resource(s) in use"));
         return;
     }
