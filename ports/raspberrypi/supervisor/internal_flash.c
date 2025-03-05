@@ -40,13 +40,16 @@
 static uint8_t _cache[SECTOR_SIZE];
 static uint32_t _cache_lba = NO_CACHE;
 static uint32_t _flash_size = 0;
+#if CIRCUITPY_AUDIOCORE
+static uint32_t _audio_channel_mask;
+#endif
 
 void supervisor_flash_pre_write(void) {
     // Disable interrupts. XIP accesses will fault during flash writes.
     common_hal_mcu_disable_interrupts();
     // Pause audio DMA to avoid noise while interrupts are disabled.
     #if CIRCUITPY_AUDIOCORE
-    uint32_t channel_mask = audio_dma_pause_all();
+    _audio_channel_mask = audio_dma_pause_all();
     #endif
 }
 
@@ -55,7 +58,7 @@ void supervisor_flash_post_write(void) {
     common_hal_mcu_enable_interrupts();
     // Unpause audio DMA.
     #if CIRCUITPY_AUDIOCORE
-    audio_dma_unpause_mask(channel_mask);
+    audio_dma_unpause_mask(_audio_channel_mask);
     #endif
 }
 
