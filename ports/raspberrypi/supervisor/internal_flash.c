@@ -47,19 +47,19 @@ static uint32_t _audio_channel_mask;
 void supervisor_flash_pre_write(void) {
     // Disable interrupts. XIP accesses will fault during flash writes.
     common_hal_mcu_disable_interrupts();
-    // Pause audio DMA to avoid noise while interrupts are disabled.
     #if CIRCUITPY_AUDIOCORE
+    // Pause audio DMA to avoid noise while interrupts are disabled.
     _audio_channel_mask = audio_dma_pause_all();
     #endif
 }
 
 void supervisor_flash_post_write(void) {
-    // Re-enable interrupts.
-    common_hal_mcu_enable_interrupts();
-    // Unpause audio DMA.
     #if CIRCUITPY_AUDIOCORE
+    // Unpause audio DMA.
     audio_dma_unpause_mask(_audio_channel_mask);
     #endif
+    // Re-enable interrupts.
+    common_hal_mcu_enable_interrupts();
 }
 
 void supervisor_flash_init(void) {
