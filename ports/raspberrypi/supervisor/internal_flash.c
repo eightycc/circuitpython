@@ -91,9 +91,11 @@ void supervisor_flash_init(void) {
     // Read the RDID register to get the flash capacity.
     uint8_t cmd[] = {0x9f, 0, 0, 0};
     uint8_t data[4];
+    common_hal_mcu_disable_interrupts();
     supervisor_flash_pre_write();
     flash_do_cmd(cmd, data, 4);
     supervisor_flash_post_write();
+    common_hal_mcu_enable_interrupts();
     uint8_t power_of_two = FLASH_DEFAULT_POWER_OF_TWO;
     // Flash must be at least 2MB (1 << 21) because we use the first 1MB for the
     // CircuitPython core. We validate the range because Adesto Tech flash chips
