@@ -165,12 +165,11 @@ static void __not_in_flash_func(dma_irq_handler)(void) {
         return;
     }
     uint ch_num = active_picodvi->dma_pixel_channel;
-    dma_channel_hw_t *ch = &dma_hw->ch[ch_num];
     dma_hw->intr = 1u << ch_num;
 
     // Set the read_addr back to the start and trigger the first transfer (which
     // will trigger the pixel channel).
-    ch = &dma_hw->ch[active_picodvi->dma_command_channel];
+    dma_channel_hw_t *ch = &dma_hw->ch[active_picodvi->dma_command_channel];
     ch->al3_read_addr_trig = (uintptr_t)active_picodvi->dma_commands;
 }
 
@@ -258,19 +257,21 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
 
     self->width = width;
     self->height = height;
-    self->pitch = (self->width * color_depth) / 8;
     self->color_depth = color_depth;
-    // Align each row to words.
-    if (self->pitch % sizeof(uint32_t) != 0) {
-        self->pitch += sizeof(uint32_t) - (self->pitch % sizeof(uint32_t));
-    }
-    self->pitch /= sizeof(uint32_t);
+    // Pitch is number of 32-bit words per line. We round up pitch_bytes to the nearest word
+    // so that each scanline begins on a natural 32-bit word boundary.
+    size_t pitch_bytes = (self->width * color_depth) / 8;
+    self->pitch = (pitch_bytes + sizeof(uint32_t) - 1) / sizeof(uint32_t);
     size_t framebuffer_size = self->pitch * self->height;
 
     // We check that allocations aren't in PSRAM because we haven't added XIP
     // streaming support.
     self->framebuffer = (uint32_t *)port_malloc(framebuffer_size * sizeof(uint32_t), true);
     if (self->framebuffer == NULL || ((size_t)self->framebuffer & 0xf0000000) == 0x10000000) {
+        if (self->framebuffer != NULL) {
+            port_free(self->framebuffer);
+            self->framebuffer = NULL;
+        }
         m_malloc_fail(framebuffer_size * sizeof(uint32_t));
         return;
     }
@@ -292,25 +293,40 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     }
     self->dma_commands = (uint32_t *)port_malloc(self->dma_commands_len * sizeof(uint32_t), true);
     if (self->dma_commands == NULL || ((size_t)self->framebuffer & 0xf0000000) == 0x10000000) {
+        if (self->dma_commands != NULL) {
+            port_free(self->dma_commands);
+            self->dma_commands = NULL;
+        }
         port_free(self->framebuffer);
+        self->framebuffer = NULL;
         m_malloc_fail(self->dma_commands_len * sizeof(uint32_t));
         return;
     }
 
-    int dma_pixel_channel_maybe = dma_claim_unused_channel(false);
-    if (dma_pixel_channel_maybe < 0) {
-        mp_raise_RuntimeError(MP_ERROR_TEXT("Internal resource(s) in use"));
-        return;
-    }
+    // The command channel and the pixel channel form a pipeline that feeds combined HSTX
+    // commands and pixel data to the HSTX FIFO. The command channel reads a pre-computed
+    // list of control/status words from the dma_commands buffer and writes them to the
+    // pixel channel's control/status registers. Under control of the command channel, the
+    // pixel channel smears/swizzles pixel data from the framebuffer and combines
+    // it with HSTX commands, forwarding the combined stream to the HSTX FIFO.
 
-    int dma_command_channel_maybe = dma_claim_unused_channel(false);
-    if (dma_command_channel_maybe < 0) {
-        dma_channel_unclaim((uint)dma_pixel_channel_maybe);
+    self->dma_pixel_channel = dma_claim_unused_channel(false);
+    self->dma_command_channel = dma_claim_unused_channel(false);
+    if (self->dma_pixel_channel < 0 || self->dma_command_channel < 0) {
+        // If we're short of DMA channels, release any previously allocated resources.
+        if (self->dma_pixel_channel >= 0) {
+            dma_channel_unclaim(self->dma_pixel_channel);
+        }
+        if (self->dma_command_channel >= 0) {
+            dma_channel_unclaim(self->dma_command_channel);
+        }
+        port_free(self->framebuffer);
+        self->framebuffer = NULL;
+        port_free(self->dma_commands);
+        self->dma_commands = NULL;
         mp_raise_RuntimeError(MP_ERROR_TEXT("Internal resource(s) in use"));
         return;
     }
-    self->dma_pixel_channel = dma_pixel_channel_maybe;
-    self->dma_command_channel = dma_command_channel_maybe;
 
     size_t command_word = 0;
     size_t frontporch_start;
@@ -577,7 +593,10 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     dma_irq_handler();
 }
 
-static void _turn_off_dma(uint8_t channel) {
+static void _turn_off_dma(int channel) {
+    if (channel < 0) {
+        return;
+    }
     dma_channel_config c = dma_channel_get_default_config(channel);
     channel_config_set_enable(&c, false);
     dma_channel_set_config(channel, &c, false /* trigger */);
@@ -600,6 +619,8 @@ void common_hal_picodvi_framebuffer_deinit(picodvi_framebuffer_obj_t *self) {
 
     _turn_off_dma(self->dma_pixel_channel);
     _turn_off_dma(self->dma_command_channel);
+    self->dma_pixel_channel = -1;
+    self->dma_command_channel = -1;
 
     active_picodvi = NULL;
 
