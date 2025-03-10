@@ -41,4 +41,10 @@ typedef struct {
     uint8_t color_depth;
     int dma_pixel_channel;
     int dma_command_channel;
+    bool framebuffer_in_psram;
+    bool dma_irq_handler_installed;
+    // Command and pixel DMA channel pause handshake controls. Volatile because they
+    // are used to communicate between main thread and DMA IRQ handler.
+    volatile bool dma_pausing;
+    volatile bool dma_paused;
 } picodvi_framebuffer_obj_t;

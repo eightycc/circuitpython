@@ -39,7 +39,7 @@
 #include "sdk/src/rp2350/hardware_structs/include/hardware/structs/bus_ctrl.h"
 #include "sdk/src/rp2350/hardware_structs/include/hardware/structs/hstx_ctrl.h"
 #include "sdk/src/rp2350/hardware_structs/include/hardware/structs/hstx_fifo.h"
-
+#include "sdk/src/rp2350/hardware_structs/include/hardware/structs/xip_ctrl.h"
 // ----------------------------------------------------------------------------
 // DVI constants
 
@@ -158,19 +158,82 @@ static uint32_t vactive_line720[VACTIVE_LEN] = {
     HSTX_CMD_TMDS | MODE_720_H_ACTIVE_PIXELS
 };
 
-picodvi_framebuffer_obj_t *active_picodvi = NULL;
+static picodvi_framebuffer_obj_t *_active_picodvi = NULL;
 
-static void __not_in_flash_func(dma_irq_handler)(void) {
-    if (active_picodvi == NULL) {
+static void __not_in_flash_func(_dma_irq_handler)(void) {
+    if (_active_picodvi == NULL || _active_picodvi->dma_paused) {
         return;
     }
-    uint ch_num = active_picodvi->dma_pixel_channel;
+    if (_active_picodvi->dma_pausing) {
+        // Disable command and pixel DMA channels to ensure no asynchronous transfers,
+        // triggers, or interrupts occur while paused.
+        dma_channel_hw_t *pix_ch = &dma_hw->ch[_active_picodvi->dma_pixel_channel];
+        dma_channel_hw_t *cmd_ch = &dma_hw->ch[_active_picodvi->dma_command_channel];
+        pix_ch->al1_ctrl &= ~DMA_CH0_CTRL_TRIG_EN_BITS;
+        cmd_ch->al1_ctrl &= ~DMA_CH0_CTRL_TRIG_EN_BITS;
+        _active_picodvi->dma_pausing = false;
+        _active_picodvi->dma_paused = true;
+        return;
+    }
+    uint ch_num = _active_picodvi->dma_pixel_channel;
     dma_hw->intr = 1u << ch_num;
 
     // Set the read_addr back to the start and trigger the first transfer (which
     // will trigger the pixel channel).
-    dma_channel_hw_t *ch = &dma_hw->ch[active_picodvi->dma_command_channel];
-    ch->al3_read_addr_trig = (uintptr_t)active_picodvi->dma_commands;
+    dma_channel_hw_t *ch = &dma_hw->ch[_active_picodvi->dma_command_channel];
+    ch->al3_read_addr_trig = (uintptr_t)_active_picodvi->dma_commands;
+}
+
+static void _pause_picodvi_dma(picodvi_framebuffer_obj_t *self, bool pause) {
+    if (pause) {
+        // Synchronize with end of the current frame.
+        // TODO: Presently we stop feeding the HSTX FIFO at the end of the current
+        // frame. Because the TMDS output stops when the HSTX FIFO empties, the monitor
+        // may lose synchronization leading to a blank screen for an extended period
+        // of time. As an alternative, consider switching to a fake framebuffer of
+        // all black pixels to maintain monitor synchronization.
+        self->dma_pausing = true;
+        // Wait for the DMA IRQ handler to pause the DMA channels
+        while (!self->dma_paused) {
+            tight_loop_contents();
+        }
+        assert(!self->dma_pausing);
+        assert(self->dma_paused);
+        assert(!dma_channel_is_busy(self->dma_pixel_channel));
+        assert(!dma_channel_is_busy(self->dma_command_channel));
+    } else {
+        self->dma_paused = false;
+        _dma_irq_handler();
+    }
+}
+
+static void _turn_off_dma(int channel) {
+    if (channel < 0) {
+        return;
+    }
+    dma_channel_config c = dma_channel_get_default_config(channel);
+    channel_config_set_enable(&c, false);
+    dma_channel_set_config(channel, &c, false /* trigger */);
+
+    if (dma_channel_is_busy(channel)) {
+        dma_channel_abort(channel);
+    }
+    dma_channel_set_irq1_enabled(channel, false);
+    dma_channel_unclaim(channel);
+}
+
+void common_hal_picodvi_framebuffer_flash_pre_write() {
+    if (_active_picodvi == NULL || !_active_picodvi->framebuffer_in_psram) {
+        return;
+    }
+    _pause_picodvi_dma(_active_picodvi, true);
+}
+
+void common_hal_picodvi_framebuffer_flash_post_write() {
+    if (_active_picodvi == NULL || !_active_picodvi->framebuffer_in_psram) {
+        return;
+    }
+    _pause_picodvi_dma(_active_picodvi, false);
 }
 
 bool common_hal_picodvi_framebuffer_preflight(
@@ -215,7 +278,7 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     const mcu_pin_obj_t *green_dp, const mcu_pin_obj_t *green_dn,
     const mcu_pin_obj_t *blue_dp, const mcu_pin_obj_t *blue_dn,
     mp_uint_t color_depth) {
-    if (active_picodvi != NULL) {
+    if (_active_picodvi != NULL) {
         mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("%q in use"), MP_QSTR_picodvi);
     }
 
@@ -267,10 +330,16 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     self->pitch = (pitch_bytes + sizeof(uint32_t) - 1) / sizeof(uint32_t);
     size_t framebuffer_size = self->pitch * self->height;
 
-    // We check that allocations aren't in PSRAM because we haven't added XIP
-    // streaming support.
-    self->framebuffer = (uint32_t *)port_malloc(framebuffer_size * sizeof(uint32_t), true);
-    if (self->framebuffer == NULL || ((size_t)self->framebuffer & 0xf0000000) == 0x10000000) {
+    // A framebuffer that exceeds the capacity of the SRAM will be allocated in PSRAM.
+    // If the framebuffer is in PSRAM, HSTX output will be paused during flash writes,
+    // resulting in a blank screen for the duration of the flash write.
+    //
+    // For testing purposes, add 1MB to the framebuffer allocation size to force it into PSRAM.
+    // NOTE: the dma_capable parameter of port_malloc() does nothing.
+    size_t framebuffer_alloc_size = framebuffer_size * sizeof(uint32_t) + 1024 * 1024;
+    self->framebuffer = (uint32_t *)port_malloc(framebuffer_alloc_size, true);
+    self->framebuffer_in_psram = ((size_t)self->framebuffer & 0xf0000000) == 0x10000000;
+    if (self->framebuffer == NULL) {
         common_hal_picodvi_framebuffer_deinit(self);
         m_malloc_fail(framebuffer_size * sizeof(uint32_t));
         return;
@@ -563,34 +632,20 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
 
     dma_hw->ints1 = (1u << self->dma_pixel_channel);
     dma_hw->inte1 = (1u << self->dma_pixel_channel);
-    irq_set_exclusive_handler(DMA_IRQ_1, dma_irq_handler);
+    irq_set_exclusive_handler(DMA_IRQ_1, _dma_irq_handler);
     irq_set_enabled(DMA_IRQ_1, true);
     irq_set_priority(DMA_IRQ_1, PICO_HIGHEST_IRQ_PRIORITY);
+    self->dma_irq_handler_installed = true;
 
     bus_ctrl_hw->priority = BUSCTRL_BUS_PRIORITY_DMA_W_BITS | BUSCTRL_BUS_PRIORITY_DMA_R_BITS;
 
     // For the output.
     self->framebuffer_len = framebuffer_size;
 
-    active_picodvi = self;
+    _active_picodvi = self;
 
     common_hal_picodvi_framebuffer_refresh(self);
-    dma_irq_handler();
-}
-
-static void _turn_off_dma(int channel) {
-    if (channel < 0) {
-        return;
-    }
-    dma_channel_config c = dma_channel_get_default_config(channel);
-    channel_config_set_enable(&c, false);
-    dma_channel_set_config(channel, &c, false /* trigger */);
-
-    if (dma_channel_is_busy(channel)) {
-        dma_channel_abort(channel);
-    }
-    dma_channel_set_irq1_enabled(channel, false);
-    dma_channel_unclaim(channel);
+    _dma_irq_handler();
 }
 
 void common_hal_picodvi_framebuffer_deinit(picodvi_framebuffer_obj_t *self) {
@@ -607,7 +662,13 @@ void common_hal_picodvi_framebuffer_deinit(picodvi_framebuffer_obj_t *self) {
     self->dma_pixel_channel = -1;
     self->dma_command_channel = -1;
 
-    active_picodvi = NULL;
+    if (self->dma_irq_handler_installed) {
+        irq_set_enabled(DMA_IRQ_1, false);
+        irq_remove_handler(DMA_IRQ_1, _dma_irq_handler);
+        self->dma_irq_handler_installed = false;
+    }
+
+    _active_picodvi = NULL;
 
     port_free(self->framebuffer);
     self->framebuffer = NULL;

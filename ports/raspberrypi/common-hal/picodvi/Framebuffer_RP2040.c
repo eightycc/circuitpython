@@ -106,6 +106,12 @@ static void __not_in_flash_func(core1_scanline_callback)(void) {
     }
 }
 
+void common_hal_picodvi_framebuffer_pre_write() {
+}
+
+void common_hal_picodvi_framebuffer_post_write() {
+}
+
 extern uint8_t dvi_vertical_repeat;
 extern bool dvi_monochrome_tmds;
 

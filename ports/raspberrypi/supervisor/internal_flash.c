@@ -23,6 +23,8 @@
 #include "supervisor/flash.h"
 #include "supervisor/usb.h"
 
+#include "bindings/picodvi/Framebuffer.h"
+
 #ifdef PICO_RP2350
 #include "src/rp2350/hardware_structs/include/hardware/structs/qmi.h"
 #endif
@@ -47,6 +49,7 @@ static uint32_t _audio_channel_mask;
 void supervisor_flash_pre_write(void) {
     // Disable interrupts. XIP accesses will fault during flash writes.
     common_hal_mcu_disable_interrupts();
+    common_hal_picodvi_framebuffer_flash_pre_write();
     #if CIRCUITPY_AUDIOCORE
     // Pause audio DMA to avoid noise while interrupts are disabled.
     _audio_channel_mask = audio_dma_pause_all();
@@ -58,6 +61,7 @@ void supervisor_flash_post_write(void) {
     // Unpause audio DMA.
     audio_dma_unpause_mask(_audio_channel_mask);
     #endif
+    common_hal_picodvi_framebuffer_flash_post_write();
     // Re-enable interrupts.
     common_hal_mcu_enable_interrupts();
 }

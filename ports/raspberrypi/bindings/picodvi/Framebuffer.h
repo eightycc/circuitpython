@@ -32,3 +32,5 @@ int common_hal_picodvi_framebuffer_get_color_depth(picodvi_framebuffer_obj_t *se
 int common_hal_picodvi_framebuffer_get_native_frames_per_second(picodvi_framebuffer_obj_t *self);
 bool common_hal_picodvi_framebuffer_get_grayscale(picodvi_framebuffer_obj_t *self);
 mp_int_t common_hal_picodvi_framebuffer_get_buffer(mp_obj_t self_in, mp_buffer_info_t *bufinfo, mp_uint_t flags);
+void common_hal_picodvi_framebuffer_flash_pre_write(void);
+void common_hal_picodvi_framebuffer_flash_post_write(void);
