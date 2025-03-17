@@ -12,11 +12,11 @@
 #include "supervisor/usb.h"
 
 #include "src/common/pico_time/include/pico/time.h"
-#ifdef PICO_RP2040
+#if PICO_RP2040
 #include "src/rp2040/hardware_structs/include/hardware/structs/mpu.h"
 #include "src/rp2_common/cmsis/stub/CMSIS/Device/RP2040/Include/RP2040.h"
 #endif
-#ifdef PICO_RP2350
+#if PICO_RP2350
 #include "src/rp2350/hardware_structs/include/hardware/structs/mpu.h"
 #include "src/rp2_common/cmsis/stub/CMSIS/Device/RP2350/Include/RP2350.h"
 #endif

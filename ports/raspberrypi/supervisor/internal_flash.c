@@ -23,7 +23,7 @@
 #include "supervisor/flash.h"
 #include "supervisor/usb.h"
 
-#ifdef PICO_RP2350
+#if PICO_RP2350
 #include "src/rp2350/hardware_structs/include/hardware/structs/qmi.h"
 #endif
 #include "src/rp2040/hardware_structs/include/hardware/structs/sio.h"
