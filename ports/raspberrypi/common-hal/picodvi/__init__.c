@@ -150,7 +150,8 @@ void picodvi_autoconstruct(void) {
         DEFAULT_DVI_BUS_GREEN_DN,
         DEFAULT_DVI_BUS_BLUE_DP,
         DEFAULT_DVI_BUS_BLUE_DN,
-        color_depth);
+        color_depth,
+        false);
 
     framebufferio_framebufferdisplay_obj_t *display = &allocate_display()->framebuffer_display;
     display->base.type = &framebufferio_framebufferdisplay_type;

@@ -128,7 +128,8 @@ static mp_obj_t picodvi_framebuffer_make_new(const mp_obj_type_t *type, size_t n
         validate_obj_is_free_pin(args[ARG_green_dn].u_obj, MP_QSTR_green_dn),
         validate_obj_is_free_pin(args[ARG_blue_dp].u_obj, MP_QSTR_blue_dp),
         validate_obj_is_free_pin(args[ARG_blue_dn].u_obj, MP_QSTR_blue_dn),
-        color_depth);
+        color_depth,
+        false);
 
     return MP_OBJ_FROM_PTR(self);
 }

@@ -121,7 +121,8 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     const mcu_pin_obj_t *red_dp, const mcu_pin_obj_t *red_dn,
     const mcu_pin_obj_t *green_dp, const mcu_pin_obj_t *green_dn,
     const mcu_pin_obj_t *blue_dp, const mcu_pin_obj_t *blue_dn,
-    mp_uint_t color_depth) {
+    mp_uint_t color_depth,
+    bool psram_framebuffer) {
     if (active_picodvi != NULL) {
         mp_raise_msg_varg(&mp_type_RuntimeError, MP_ERROR_TEXT("%q in use"), MP_QSTR_picodvi);
     }

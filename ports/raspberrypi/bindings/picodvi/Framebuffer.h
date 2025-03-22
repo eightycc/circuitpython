@@ -21,7 +21,8 @@ void common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     const mcu_pin_obj_t *red_dp, const mcu_pin_obj_t *red_dn,
     const mcu_pin_obj_t *green_dp, const mcu_pin_obj_t *green_dn,
     const mcu_pin_obj_t *blue_dp, const mcu_pin_obj_t *blue_dn,
-    mp_uint_t color_depth);
+    mp_uint_t color_depth,
+    bool psram_framebuffer);
 void common_hal_picodvi_framebuffer_deinit(picodvi_framebuffer_obj_t *self);
 bool common_hal_picodvi_framebuffer_deinited(picodvi_framebuffer_obj_t *self);
 void common_hal_picodvi_framebuffer_refresh(picodvi_framebuffer_obj_t *self);
