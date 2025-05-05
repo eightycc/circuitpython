@@ -230,13 +230,17 @@ LDFLAGS += \
 	-Tmemory.ld \
 	-Tsections.ld \
 	-T$(IDF_TARGET).peripherals.ld \
-	-T$(IDF_TARGET).rom.ld \
-	-T$(IDF_TARGET).rom.api.ld \
-	-T$(IDF_TARGET).rom.libgcc.ld \
 	-Wl,-Bstatic \
 	-Wl,--no-warn-mismatch \
 	-Wl,--build-id=none \
 	-fno-rtti
+
+# Select linker script fragments that import ROM functions.
+# Based on esp-idf/components/esp_rom/CMakeLists.txt, must be kept in sync with ESP-IDF version.
+LDFLAGS += \
+	-T$(IDF_TARGET).rom.ld \
+	-T$(IDF_TARGET).rom.api.ld \
+	-T$(IDF_TARGET).rom.libgcc.ld
 
 ifeq ($(IDF_TARGET),esp32)
 LDFLAGS += \
@@ -266,6 +270,7 @@ LDFLAGS += \
 	-Tesp32c3.rom.newlib.ld \
 	-Tesp32c3.rom.version.ld \
 	-Tesp32c3.rom.eco3.ld \
+	-Tesp32c3.rom.eco3_bt_funcs.ld \
 	-Tesp32c3.rom.bt_funcs.ld
 
 CHIP_COMPONENTS = \
